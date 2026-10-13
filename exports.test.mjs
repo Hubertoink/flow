@@ -48,12 +48,26 @@ assert.equal(plan.getCell('L7').value,16.75);assert.equal(plan.getCell('M7').val
 assert.equal(plan.getCell('B6').value,null);assert.equal(plan.getCell('B5').value,'09:00\n14:00');assert.equal(plan.getCell('C5').value,'11:00\n16:00');
 assert.equal(plan.getCell('L8').value.result,20.75);assert.equal(plan.getCell('M8').value.result,31);assert.match(plan.getCell('L8').value.formula,/SUM/);
 assert.equal(plan.autoFilter,'A4:M7');assert.equal(plan.views[0].xSplit,1);assert.equal(plan.views[0].ySplit,4);
-assert.notEqual(plan.getCell('L7').fill.fgColor.argb,plan.getCell('M7').fill.fgColor.argb);assert.equal(details.rowCount,8);assert.equal(details.autoFilter,'A1:H8');
+assert.notEqual(plan.getCell('L7').fill.fgColor.argb,plan.getCell('M7').fill.fgColor.argb);assert.equal(details.rowCount,8);assert.equal(details.autoFilter,'A1:J8');
 assert.equal(details.getCell('G5').value,'=SUM(A1:A2)');assert.equal(details.getCell('G5').type,ExcelJS.ValueType.String);assert.equal(details.getCell('H5').value,2);
 assert.equal(details.getCell('B5').value.toISOString().slice(0,10),monday);assert.equal(details.getCell('G5').fill.fgColor.argb,'FF112233');
 const full=w.buildWeeklyWorkbook(w.runExportCode('weeklyExportSnapshot(true)'));assert.equal(full.getWorksheet('Wochenplan').columnCount,17);
 assert.match(full.getWorksheet('Wochenplan').getCell('N4').value,/Sonntag.*von/);
 const empty=w.buildWeeklyWorkbook({...snapshot,people:[],shifts:[]});assert.equal(empty.getWorksheet('Wochenplan').getCell('L5').value,0);
+
+// Net totals aggregate all shifts of a person per day and use snapshot rules.
+const pausedSnapshot={...snapshot,breakRules:[{after:4,minutes:30},{after:7,minutes:40}]};
+const pausedWorkbook=w.buildWeeklyWorkbook(pausedSnapshot),pausedBytes=await pausedWorkbook.xlsx.writeBuffer(),pausedRoundtrip=new ExcelJS.Workbook();
+await pausedRoundtrip.xlsx.load(Buffer.from(pausedBytes));
+const pausedPlan=pausedRoundtrip.getWorksheet('Wochenplan'),pausedDetails=pausedRoundtrip.getWorksheet('Schichtdetails');
+assert.equal(pausedPlan.getCell('L5').value,3.5);assert.ok(Math.abs(pausedPlan.getCell('L7').value-(16.75-80/60))<1e-9);
+assert.equal(pausedPlan.getCell('M7').value,16);assert.equal(pausedDetails.getCell('I2').value,.25);assert.equal(pausedDetails.getCell('I3').value,.25);
+assert.equal(pausedDetails.getCell('J2').value,1.75);assert.equal(pausedDetails.getCell('H2').value,2);assert.equal(pausedDetails.getCell('I5').value,null);
+w.runExportCode('data.settings.breakRules=[{after:6,minutes:30}];');
+const frozenRules=w.runExportCode('weeklyExportSnapshot(false)');
+w.runExportCode('data.settings.breakRules[0].minutes=45;');
+assert.equal(frozenRules.breakRules[0].minutes,30);
+w.runExportCode('delete data.settings.breakRules;');
 
 // Export DOM covers all days and lanes, without changing focus, zoom, storage or live markup.
 q('.day-head').click();q('[data-shift="monday-shift"] .shift-edit').click();q('#zoom-in').click();

@@ -5,7 +5,7 @@ function weeklyExportSnapshot(includeWeekend=false){
   const days=Array.from({length:includeWeekend?7:5},(_,i)=>dateKey(addDays(week,i)));
   const people=structuredClone(data.people.filter(p=>shifts.some(s=>s.person===p.id)||Array.from({length:7},(_,i)=>dateKey(addDays(week,i))).some(date=>activeOn(p,date))))
     .sort((a,b)=>a.name.localeCompare(b.name,'de')||a.id.localeCompare(b.id));
-  return {start,end,days,people,shifts,weekNumber:isoWeek(week)};
+  return {start,end,days,people,shifts,breakRules:structuredClone(breakRules()),weekNumber:isoWeek(week)};
 }
 
 function fillExcel(color){return {type:'pattern',pattern:'solid',fgColor:{argb:color}};}
@@ -17,21 +17,21 @@ function styleExcelHeader(sheet,rowNumber){
 function buildWeeklyWorkbook(snapshot){
   const workbook=new ExcelJS.Workbook();workbook.creator='Flow!';
   const plan=workbook.addWorksheet('Wochenplan',{views:[{state:'frozen',xSplit:1,ySplit:4}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
-  const headers=['Person',...snapshot.days.flatMap((date,i)=>{const day=weekdays[i]+' '+parseDate(date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});return [day+' von',day+' bis'];}),'Ist-Stunden (Mo–So)','Soll-Stunden'];
+  const headers=['Person',...snapshot.days.flatMap((date,i)=>{const day=weekdays[i]+' '+parseDate(date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});return [day+' von',day+' bis'];}),'Ist netto (Mo–So)','Soll-Stunden netto'];
   const last=headers.length,actualColumn=last-1;
   plan.columns=headers.map((name,i)=>({width:i===0?24:i>=last-2?20:14}));
   plan.mergeCells(1,1,1,last);plan.getCell('A1').value=`Flow! Wochenplan · KW ${snapshot.weekNumber}`;
   plan.getCell('A1').font={name:'Calibri',size:18,bold:true,color:{argb:'FF263449'}};plan.getRow(1).height=34;
   plan.mergeCells(2,1,2,last);plan.getCell('A2').value=`${parseDate(snapshot.start).toLocaleDateString('de-DE')} – ${parseDate(snapshot.end).toLocaleDateString('de-DE')} · Ist/Soll: gesamte Woche Montag–Sonntag`;
-  plan.mergeCells(3,1,3,last);plan.getCell('A3').value='Zeiten sind Excel-Zeitwerte, Stunden Dezimalzahlen. Alle Schichten und Aufgaben stehen unter „Schichtdetails“.';
+  plan.mergeCells(3,1,3,last);plan.getCell('A3').value='Ist = Anwesenheit minus Pause je Person/Tag. Soll = Netto-Arbeitszeit. Schichtdetails: Pausen proportional auf Schichten verteilt; Aufgabenzeiten brutto.';
   plan.getCell('A3').font={name:'Calibri',size:10,color:{argb:'FF64748B'}};
   plan.getRow(4).values=headers;styleExcelHeader(plan,4);
   const details=workbook.addWorksheet('Schichtdetails',{views:[{state:'frozen',ySplit:1}],pageSetup:{orientation:'landscape',paperSize:9}});
-  details.columns=[{header:'Person',width:24},{header:'Datum',width:15},{header:'Wochentag',width:18},{header:'Eintrag',width:14},{header:'Von',width:12},{header:'Bis',width:12},{header:'Aufgabe',width:32},{header:'Stunden',width:14}];
+  details.columns=[{header:'Person',width:24},{header:'Datum',width:15},{header:'Wochentag',width:18},{header:'Eintrag',width:14},{header:'Von',width:12},{header:'Bis',width:12},{header:'Aufgabe',width:32},{header:'Anwesenheit / Aufgabe (h)',width:24},{header:'Pausenanteil (h)',width:20},{header:'Ist netto (h)',width:18}];
   let actualTotal=0,targetTotal=0;
   snapshot.people.forEach((p,index)=>{
     const own=snapshot.shifts.filter(s=>s.person===p.id).sort((a,b)=>a.date.localeCompare(b.date)||a.start-b.start);
-    const actual=own.reduce((sum,s)=>sum+s.length,0),target=p.weeklyHours??weekHours(p);
+    const actual=workTotals(own,snapshot.breakRules||[]).net,target=p.weeklyHours??weekHours(p);
     actualTotal+=actual;targetTotal+=target;
     const row=plan.addRow([p.name,...snapshot.days.flatMap(date=>{
       const entries=own.filter(s=>s.date===date);
@@ -54,8 +54,9 @@ function buildWeeklyWorkbook(snapshot){
     own.forEach(s=>{
       const date=new Date(Date.UTC(...s.date.split('-').map((n,i)=>Number(n)-(i===1?1:0))));
       const add=(kind,start,length,label,color)=>{
-        const entry=details.addRow([p.name,date,weekdays[(parseDate(s.date).getDay()+6)%7],kind,start/24,(start+length)/24,label,length]);
-        entry.getCell(2).numFmt='dd.mm.yyyy';entry.getCell(5).numFmt=entry.getCell(6).numFmt='[hh]:mm';entry.getCell(8).numFmt='0.00';
+        const work=kind==='Schicht'?shiftWork(s,snapshot.shifts,snapshot.breakRules||[]):null;
+        const entry=details.addRow([p.name,date,weekdays[(parseDate(s.date).getDay()+6)%7],kind,start/24,(start+length)/24,label,length,work?.pause??null,work?.net??null]);
+        entry.getCell(2).numFmt='dd.mm.yyyy';entry.getCell(5).numFmt=entry.getCell(6).numFmt='[hh]:mm';[8,9,10].forEach(column=>entry.getCell(column).numFmt='0.00');
         entry.eachCell(cell=>{cell.font={name:'Calibri',size:11,color:{argb:'FF263449'}};cell.alignment={vertical:'middle',wrapText:true};});
         entry.getCell(7).fill=fillExcel(excelColor(color));entry.getCell(7).font.color={argb:excelColor(taskInk({color,type:'flex'}))};
       };
@@ -68,7 +69,7 @@ function buildWeeklyWorkbook(snapshot){
   total.height=30;total.eachCell({includeEmpty:true},cell=>{cell.fill=fillExcel('FF263449');cell.font={name:'Calibri',size:11,bold:true,color:{argb:'FFFFFFFF'}};cell.alignment={vertical:'middle'};});
   [actualColumn,last].forEach((column,i)=>{total.getCell(column).value=snapshot.people.length?{formula:`SUM(${plan.getColumn(column).letter}5:${plan.getColumn(column).letter}${total.number-1})`,result:i?targetTotal:actualTotal}:0;total.getCell(column).numFmt='0.00" h"';});
   plan.pageSetup.printTitlesRow='1:4';plan.pageSetup.printArea=`A1:${plan.getColumn(last).letter}${total.number}`;
-  styleExcelHeader(details,1);details.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,details.rowCount),column:8}};
+  styleExcelHeader(details,1);details.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,details.rowCount),column:10}};
   return workbook;
 }
 

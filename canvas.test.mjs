@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const html=await readFile('dist/index.html','utf8');
 const source=await readFile('dist/icons.js','utf8')+'\n'+await readFile('dist/app.js','utf8')+'\n'+await readFile('dist/canvas.js','utf8');
-function boot(saved,setup){const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;w.structuredClone=structuredClone;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.HTMLElement.prototype.setPointerCapture=function(){};if(saved)w.localStorage.setItem('flow-plan-v1',JSON.stringify(saved));setup?.(w);w.eval(source);return dom;}
+function boot(saved,setup){const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;w.structuredClone=structuredClone;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.HTMLElement.prototype.setPointerCapture=function(){};if(saved)w.localStorage.setItem('flow-plan-v1',JSON.stringify(saved));setup?.(w);w.eval(source+'\nwindow.runCanvasCode=code=>eval(code);');return dom;}
 const dom=boot(),w=dom.window,d=w.document,q=s=>d.querySelector(s),all=s=>[...d.querySelectorAll(s)],saved=()=>JSON.parse(w.localStorage.getItem('flow-plan-v1')),submit=s=>q(s).dispatchEvent(new w.Event('submit',{cancelable:true}));
 assert.equal(all('.shift').length,0);assert.equal(all('.person-name').length,0);assert.equal(all('.token').length,4);assert.equal(q('.token time').textContent,'8 h');assert.equal(q('.save-status'),null);assert.equal(all('#add-person svg').length,1);
 q('.day-head').click();assert.equal(all('.day-head').length,5);assert.equal(all('.expanded').length,1);
@@ -108,7 +108,7 @@ const invalidTheme=bs();invalidTheme.settings.theme='invalid';const fallback=boo
 {const tabsDom=boot(),tw=tabsDom.window,tq=sel=>tw.document.querySelector(sel),tabs=()=>[...tw.document.querySelectorAll('[role=tab]')];
 tq('#add-person').click();
 assert.equal(tq('#add-person').getAttribute('aria-label'),'Einstellungen');assert.equal(tq('#modal').classList.contains('settings-dialog'),true);
-assert.deepEqual(tabs().map(t=>t.textContent.trim()),['Allgemein','Mitarbeitende','Aufgabenvorlagen','Updates']);
+assert.deepEqual(tabs().map(t=>t.textContent.trim()),['Allgemein','Pausenregelung','Mitarbeitende','Aufgabenvorlagen','Updates']);
 assert.equal(tq('[role=tablist]').getAttribute('aria-orientation'),'vertical');
 assert.equal(tq('#settings-panel-general').hidden,false);assert.equal(tq('#settings-panel-people').hidden,true);assert.equal(tq('#settings-tab-general').getAttribute('aria-selected'),'true');
 tq('#settings-tab-people').click();assert.equal(tq('#settings-panel-people').hidden,false);assert.equal(tq('#settings-panel-general').hidden,true);assert.equal(tq('#settings-tab-people').tabIndex,0);assert.equal(tq('#settings-tab-general').tabIndex,-1);
@@ -130,4 +130,107 @@ updateListener({status:'error',error:'Netzwerk <weg>'});assert.equal(uq('.update
 const lateDom=boot(null,win=>{win.flowDesktop={...fakeDesktop,updateInfo:async()=>({version:'1.1.0',supported:false,status:'idle',reason:'Paketmanager nutzen'})};}),lq=sel=>lateDom.window.document.querySelector(sel);
 await tick();lq('#add-person').click();lq('#settings-tab-updates').click();assert.match(lq('.update-note').textContent,/Paketmanager/);assert.equal(lq('#update-check'),null);lateDom.window.close();
 const toastDom=boot(null,win=>{win.flowDesktop=fakeDesktop;});await tick();updateListener({status:'available',latest:'1.3.0'});assert.equal(toastDom.window.document.querySelector('#toast').hidden,false);assert.match(toastDom.window.document.querySelector('#toast').textContent,/1\.3\.0/);toastDom.window.close();}
-console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/persistence, settings tabs, updates, weekly schedules, copies, migration and reload.');w.close();
+// Folded days retain an accessible miniature of every active shift.
+{
+const miniFixture=structuredClone(snapshot);miniFixture.people.forEach(p=>{p.from='';p.until='';});
+const firstDate=miniFixture.shifts[0].date,nextDate=new Date(firstDate+'T12:00:00');nextDate.setDate(nextDate.getDate()+1);
+const secondDate=`${nextDate.getFullYear()}-${String(nextDate.getMonth()+1).padStart(2,'0')}-${String(nextDate.getDate()).padStart(2,'0')}`;
+miniFixture.shifts=[
+  {id:'mini-monday',person:'niko',date:firstDate,start:10,length:6,y:32,segments:[{id:'mini-task',type:'flex',label:'Team <Meeting>',color:'#112233',offset:0,duration:2}]},
+  {id:'mini-tuesday',person:'kayla',date:secondDate,start:8,length:8,y:32,segments:[]}
+];
+const md=boot(miniFixture),mw=md.window,mq=s=>mw.document.querySelector(s),mall=s=>[...mw.document.querySelectorAll(s)],ms=()=>mw.localStorage.getItem('flow-plan-v1');
+const beforeMini=ms();
+assert.equal(mall('.day-mini-shift').length,2);assert.equal(mall('.day-miniatures:not([hidden])').length,0);
+mq('[data-date="'+secondDate+'"].day-head').click();
+assert.equal(mq('[data-mini-shift="mini-monday"]').closest('.day-column').classList.contains('folded'),true);
+assert.equal(mq('[data-mini-shift="mini-monday"]').parentElement.hidden,false);
+assert.equal(mq('[data-shift="mini-monday"]').inert,true);
+assert.equal(mq('[data-shift="mini-tuesday"]').inert,false);
+assert.equal(mq('[data-mini-shift="mini-tuesday"]').parentElement.hidden,true);
+assert.match(mq('[data-mini-shift="mini-monday"]').title,/Team <Meeting>: 10:00–12:00/);
+assert.equal(mq('.day-mini-bar').style.left,'12.5%');assert.equal(mq('.day-mini-bar').style.width,'37.5%');
+assert.equal(mq('.day-mini-bar').children.length,1);
+assert.equal(mq('.day-mini-bar>span').style.width,2/6*100+'%');
+assert.equal(mq('.day-mini-bar>span').style.background,'rgb(17, 34, 51)');
+assert.equal(mq('[data-mini-shift="mini-monday"]').style.getPropertyValue('--person'),miniFixture.people.find(p=>p.id==='niko').color);
+assert.equal(mq('[data-mini-shift="mini-monday"]').textContent,'');
+assert.match(mq('[data-mini-shift="mini-monday"]').getAttribute('aria-label'),/Niko, 10:00–16:00, Tag öffnen/);
+assert.equal(mq('[data-mini-shift="mini-monday"]').querySelector('meeting'),null);
+mq('[data-person="lea"]').click();
+mq('[data-mini-shift="mini-monday"]').click();
+assert.equal(mq('.expanded').dataset.date,firstDate);assert.equal(mq('[data-mini-shift="mini-tuesday"]').parentElement.hidden,false);
+assert.equal(mw.document.activeElement,mq('[data-date="'+firstDate+'"].day-head'));assert.equal(ms(),beforeMini);
+mq('[data-mini-shift="mini-tuesday"]').focus();mq('[data-mini-shift="mini-tuesday"]').click();
+assert.equal(mq('.expanded').dataset.date,secondDate);assert.equal(ms(),beforeMini);
+mq('[data-date="'+secondDate+'"].day-head').click();
+assert.equal(mq('.folded'),null);assert.equal(mall('.day-miniatures:not([hidden])').length,0);assert.ok(mall('.shift').every(el=>!el.inert));
+mq('#next').click();assert.equal(mall('.day-mini-shift').length,0);md.window.close();
+}
+{
+const bd=boot(),bw=bd.window,bq=s=>bw.document.querySelector(s),run=code=>bw.runCanvasCode(code);
+bq('#add-person').click();
+assert.equal(bq('#settings-panel-breaks').hidden,true);
+assert.equal(bq('#settings-panel-general #break-form'),null);
+bq('#settings-tab-general').dispatchEvent(new bw.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));
+assert.equal(bq('#settings-panel-breaks').hidden,false);
+assert.equal(bw.document.activeElement.id,'settings-tab-breaks');
+bq('#example-break-rules').click();
+assert.equal(run('breakRules().length'),0);
+bq('#break-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));
+assert.equal(run('breakRules().length'),2);
+for(const [gross,expected] of [[5.75,0],[6,30],[8.99,30],[9,45],[10,45]]){
+  assert.equal(run(`breakMinutes(${Math.round(gross*60)})`),expected);
+}
+for(const [net,gross] of [[5.5,5.5],[5.75,5.75],[6,6.5],[8,8.5],[8.5,9.25],[9,9.75]]){
+  assert.equal(run(`attendanceHours(${net})`),gross);
+}
+const split="[{person:'niko',date:'2026-10-12',length:3},{person:'niko',date:'2026-10-12',length:3},{person:'kayla',date:'2026-10-12',length:3},{person:'niko',date:'2026-10-13',length:3}]";
+assert.equal(run(`workTotals(${split}).net`),11.5);
+assert.equal(run(`shiftWork(${split}[0],${split}).pause`),.25);
+bq('#modal-close').click();
+const breakTransfer={setData(){},effectAllowed:'',dropEffect:''};
+bq('[data-person="niko"]').ondragstart({dataTransfer:breakTransfer});
+bq('.day-cell').getBoundingClientRect=()=>({left:0,top:0,width:1200});
+bq('.day-cell').ondragover({preventDefault(){},dataTransfer:breakTransfer,target:bq('.day-cell'),clientX:0,clientY:32});
+assert.equal(parseFloat(bq('.drop-preview').style.width),8.5/16*100);
+assert.match(bq('[data-person="niko"]').title,/8 h netto.*8,5 h Anwesenheit/);
+bq('[data-person="niko"]').ondragend();bq('[data-person="niko"]').click();
+bq('.day-cell').getBoundingClientRect=()=>({left:0,top:0,width:1200});
+bq('.day-cell').dispatchEvent(new bw.MouseEvent('click',{clientX:0,clientY:32,bubbles:true}));
+assert.equal(run('data.shifts[0].length'),8.5);assert.equal(run('data.shifts[0].start'),8);
+run('download=(content,type,name)=>{window.csvContent=content;};exportCSV();');
+assert.match(bw.csvContent,/"8.5";"0.5";"8"/);
+run('showToolkit(data.shifts[0].id);');
+bq('#tool-end').value='17:00';bq('#toolkit-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));
+assert.equal(run('workTotals(data.shifts).net'),8.25);
+run('showToolkit(data.shifts[0].id);');
+bq('#tool-end').value='16:30';bq('#toolkit-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));
+run('copyShift(data.shifts[0].id);placeCopy(dateKey(addDays(week,1)));');
+assert.equal(run('data.shifts[1].length'),8.5);assert.equal(run('workTotals(data.shifts).net'),16);
+run('data.shifts.pop();persist();refresh();');
+bq('#week-info-toggle').click();assert.match(bq('.weekly-comparison').textContent,/8 h Ist \(netto\)/);
+assert.match(bq('.weekly-tasks').textContent,/8,5 h Anwesenheit.*0,5 h Pause/);
+const shiftBefore=run('JSON.stringify(data.shifts)');
+bq('#add-person').click();
+const rows=[...bw.document.querySelectorAll('.break-rule')];
+rows[1].querySelector('[name=minutes]').value=40;
+bq('#break-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));
+assert.equal(run('breakMinutes(540)'),40);assert.equal(run('fmtTime(8+attendanceHours(9))'),'17:40');
+rows[1].querySelector('[name=after]').value=6;
+bq('#break-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));
+assert.match(bq('#break-error').textContent,/eindeutige/);assert.equal(run('breakRules()[1].after'),9);
+rows[1].querySelector('[name=after]').value=9;rows[1].querySelector('[name=minutes]').value=20;
+bq('#break-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));assert.match(bq('#break-error').textContent,/nicht abnehmende/);
+assert.equal(run('JSON.stringify(data.shifts)'),shiftBefore);
+const reloaded=boot(JSON.parse(bw.localStorage.getItem('flow-plan-v1')));
+assert.equal(reloaded.window.runCanvasCode('breakRules()[1].minutes'),40);reloaded.window.close();
+rows.forEach(row=>row.querySelector('button').click());bq('#break-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));
+assert.equal(run('workTotals(data.shifts).net'),8.5);assert.equal(run('JSON.stringify(data.shifts)'),shiftBefore);
+run('data.settings.breakRules=[{after:6,minutes:30}];data.people[0].weekdayHours=Array(7).fill(16);drag={kind:"person",id:data.people[0].id};');
+assert.match(run('dropBlocked(dateKey(addDays(week,1)))'),/einschließlich Pause/);
+run('drag=null;createShift(data.people[0].id,dateKey(addDays(week,1)));');
+assert.match(bq('#toast').textContent,/passen nicht/);assert.equal(run('data.shifts.length'),1);
+bw.close();
+}
+console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/persistence, settings tabs, updates, weekly schedules, copies, folded-day miniatures, break rules/net totals, migration and reload.');w.close();

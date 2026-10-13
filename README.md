@@ -6,9 +6,30 @@ kopierbaren Teilschichten und Ist-/Sollstunden.
 ## Oberfläche
 
 Die Einstellungen (Zahnrad im Dock oder **Weitere Optionen → Einstellungen**)
-sind über ein linkes Menü in **Allgemein**, **Mitarbeitende**,
+sind über ein linkes Menü in **Allgemein**, **Pausenregelung**, **Mitarbeitende**,
 **Aufgabenvorlagen** und **Updates** gegliedert; die Reiter lassen sich auch
 mit den Pfeiltasten wechseln. Bei schmalen Fenstern liegen sie oben.
+
+Unter **Einstellungen → Pausenregelung** lassen sich beliebig viele Stufen aus
+Stundengrenze und Pausenminuten festlegen, zum Beispiel ab 6 Stunden 30 Minuten
+und ab 9 Stunden 45 Minuten. Grenzen gelten inklusive und beziehen sich auf
+die summierte Anwesenheit einer Person pro Tag, auch bei mehreren Schichten.
+Nur die höchste zutreffende Pausendauer wird abgezogen. Stufen müssen
+eindeutig sein und dürfen die Pausendauer nicht verringern.
+Die Regel wird explizit gespeichert; vorhandene Pläne starten ohne Abzug.
+Alle Stufen entfernen und speichern deaktiviert den Abzug.
+
+Ist-Stunden in der Wochenübersicht sowie Excel und CSV sind **netto**.
+Sollstunden und Tagesstunden bleiben Netto-Arbeitszeitziele: 8 Tagesstunden
+erzeugen bei 30 Minuten Pause eine neue Schicht mit 8,5 Stunden Anwesenheit.
+Passt die Anwesenheit nicht in 08:00–24:00, erscheint eine Fehlermeldung.
+Bestehende Schichtzeiten und Kopien werden nicht automatisch verlängert;
+ihre Ist-Stunden werden bei Regeländerungen sofort neu berechnet.
+Excel-/CSV-Schichtdetails zeigen Anwesenheit, Pausenanteil und Netto-Stunden.
+Bei mehreren Schichten wird die Tagespause proportional auf diese verteilt,
+ohne eine konkrete Pausenlage zu erfinden. Aufgabenzeiten bleiben brutto und
+werden entsprechend gekennzeichnet; PNG und Druck behalten die realen Zeiten.
+Die Pausenregel bleibt beim Neustart erhalten und ist im JSON-Backup enthalten.
 
 Unter **Einstellungen → Allgemein → Design** stehen **Dunkel**, **Hell**
 und **Catppuccin Mocha** zur Wahl. Die Auswahl bleibt beim Neustart erhalten;
@@ -18,6 +39,15 @@ Der kompakte Tageskopf ist 60 px hoch (mobil 56 px). Die Canvas-Höhe richtet
 sich nach dem verfügbaren Platz und den tatsächlichen Schichten, statt eine
 unnötige Mindesthöhe zu erzwingen. Vertikales Scrollen erscheint nur, wenn
 Schichten einschließlich ausgeklappter Aufgaben mehr Platz benötigen.
+
+Bei geöffnetem Einzeltag zeigen die übrigen, schmalen Tage kleine farbige,
+abgerundete Pillen für alle Schichten, ohne Rahmen oder sichtbare Namen.
+Position und Länge bilden die Schichtzeiten proportional ab; die ursprünglichen
+Personen- und Aufgabenfarben bleiben erhalten.
+Der Tooltip enthält Personenname, vollständige Zeiten und Aufgaben.
+Ein Klick oder die Tastaturaktivierung einer Pille öffnet direkt deren
+Tag, ohne Schichten zu verändern. Druck und Bildexport bleiben vollständige
+Wochenansichten ohne Miniaturpillen.
 
 Im Bearbeitungsmodus einer Schicht lassen sich Aufgaben an **beiden Enden**
 ziehen, auch wenn sie die ganze Schicht ausfüllen. Die kleinste Dauer beträgt
