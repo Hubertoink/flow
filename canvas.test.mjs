@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const html=await readFile('dist/index.html','utf8');
 const source=await readFile('dist/icons.js','utf8')+'\n'+await readFile('dist/app.js','utf8')+'\n'+await readFile('dist/canvas.js','utf8');
-function boot(saved){const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;w.structuredClone=structuredClone;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.HTMLElement.prototype.setPointerCapture=function(){};if(saved)w.localStorage.setItem('flow-plan-v1',JSON.stringify(saved));w.eval(source);return dom;}
+function boot(saved,setup){const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;w.structuredClone=structuredClone;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.HTMLElement.prototype.setPointerCapture=function(){};if(saved)w.localStorage.setItem('flow-plan-v1',JSON.stringify(saved));setup?.(w);w.eval(source);return dom;}
 const dom=boot(),w=dom.window,d=w.document,q=s=>d.querySelector(s),all=s=>[...d.querySelectorAll(s)],saved=()=>JSON.parse(w.localStorage.getItem('flow-plan-v1')),submit=s=>q(s).dispatchEvent(new w.Event('submit',{cancelable:true}));
 assert.equal(all('.shift').length,0);assert.equal(all('.person-name').length,0);assert.equal(all('.token').length,4);assert.equal(q('.token time').textContent,'8 h');assert.equal(q('.save-status'),null);assert.equal(all('#add-person svg').length,1);
 q('.day-head').click();assert.equal(all('.day-head').length,5);assert.equal(all('.expanded').length,1);
@@ -71,4 +71,63 @@ scheduleQuery('[data-edit-person="niko"]').click();[8,0,8,8,7,0,0].forEach((valu
 scheduleQuery('[data-preset="prep"]').click();assert.ok(scheduleQuery('#hide-preset svg'));assert.equal(scheduleQuery('#hide-preset').getAttribute('aria-label'),'Aufgabenvorlage entfernen');scheduleDocument.dispatchEvent(new scheduleWindow.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert.equal(scheduleQuery('h2').textContent,'Einstellungen');assert.equal(scheduleQuery('#modal').open,true);scheduleQuery('#modal-close').click();assert.equal(scheduleQuery('#modal').open,false);
 scheduleDocument.querySelectorAll('.day-head')[4].click();assert.equal(scheduleQuery('[data-person="niko"] time').textContent,'7 h');const friday=scheduleDocument.querySelectorAll('.day-cell')[4];friday.getBoundingClientRect=()=>({left:0,top:0,width:1200});scheduleQuery('[data-person="niko"]').click();scheduleDocument.querySelectorAll('.day-cell')[4].getBoundingClientRect=()=>({left:0,top:0,width:1200});scheduleDocument.querySelectorAll('.day-cell')[4].dispatchEvent(new scheduleWindow.MouseEvent('click',{clientX:100,clientY:100,bubbles:true}));assert.equal(scheduleSaved().shifts[0].length,7);
 scheduleDocument.querySelectorAll('.day-column')[0].onpointerenter();assert.equal(scheduleQuery('[data-person="niko"] time').textContent,'8 h');scheduleDocument.querySelectorAll('.day-column')[0].onpointerleave();assert.equal(scheduleQuery('[data-person="niko"] time').textContent,'7 h');scheduleDocument.querySelectorAll('.day-head')[1].click();assert.equal(scheduleQuery('[data-person="niko"] time').textContent,'0 h');scheduleQuery('[data-person="niko"]').ondragstart({dataTransfer:transfer});const tuesday=scheduleDocument.querySelectorAll('.day-cell')[1];tuesday.ondragover({preventDefault(){},dataTransfer:transfer,target:tuesday,clientX:100,clientY:100});assert.equal(transfer.dropEffect,'none');assert.match(scheduleQuery('.drop-rejection').textContent,/Freier Tag/);scheduleQuery('[data-person="niko"]').ondragend();assert.deepEqual(scheduleSaved().people.find(person=>person.id==='niko').weekdayHours,[8,0,8,8,7,0,0]);scheduleWindow.close();
-console.log('PASS: canvas interactions, weekly schedules, daily badges and shift lengths, settings navigation, presets, summary, shift and individual task copies, migration and reload.');w.close();
+const boundaryFixture=structuredClone(snapshot);
+boundaryFixture.shifts=[{id:'boundary-shift',person:'niko',date:snapshot.shifts[0].date,start:8,length:8,y:32,segments:[{id:'boundary-task',type:'flex',label:'Ganzer Tag',offset:0,duration:8}]}];
+const boundaryDom=boot(boundaryFixture),bw=boundaryDom.window,bq=s=>bw.document.querySelector(s),bs=()=>JSON.parse(bw.localStorage.getItem('flow-plan-v1'));
+bq('.shift-edit').click();
+assert.equal(bq('[data-edge="task-start"]').hidden,false);
+assert.equal(bq('[data-edge="task-end"]').hidden,false);
+function resizeBoundary(edge,dx,cancel=false){
+  const shift=bq('.shift'),handle=shift.querySelector(`[data-edge="${edge}"]`);
+  shift.parentElement.getBoundingClientRect=()=>({width:1200});
+  shift.onpointerdown({button:0,currentTarget:shift,target:handle,clientX:300,clientY:90,pointerId:1});
+  bw.document.dispatchEvent(new bw.MouseEvent('pointermove',{clientX:300+dx,clientY:90,bubbles:true,cancelable:true}));
+  bw.document.dispatchEvent(new bw.Event(cancel?'pointercancel':'pointerup'));
+}
+resizeBoundary('task-start',75);assert.equal(bs().shifts[0].segments[0].offset,1);assert.equal(bs().shifts[0].segments[0].duration,7);
+resizeBoundary('task-end',-75);assert.equal(bs().shifts[0].segments[0].duration,6);
+resizeBoundary('task-start',-150);assert.equal(bs().shifts[0].segments[0].offset,0);assert.equal(bs().shifts[0].segments[0].duration,7);
+resizeBoundary('task-end',150);assert.equal(bs().shifts[0].segments[0].duration,8);assert.equal(bs().shifts[0].length,8);
+const boundaryBefore=bs();resizeBoundary('task-start',75,true);assert.deepEqual(bs(),boundaryBefore);
+resizeBoundary('task-end',-1200);assert.equal(bs().shifts[0].segments[0].duration,.25);assert.equal(bs().shifts[0].start,8);assert.equal(bs().shifts[0].length,8);
+bq('[data-task="boundary-task"]').dispatchEvent(new bw.MouseEvent('dblclick',{bubbles:true}));
+bw.eval("showToolkit('boundary-shift','boundary-task')");
+assert.equal(bq('#whole-shift'),null);
+bq('#tool-start').value='07:00';bq('#toolkit-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));
+assert.equal(bq('#detail').hidden,false);assert.match(bq('#tool-error').textContent,/08:00/);
+bq('#tool-start').value='08:00';bq('#tool-end').value='09:00';bq('#toolkit-form').dispatchEvent(new bw.Event('submit',{cancelable:true}));
+assert.equal(bq('#detail').hidden,true);assert.equal(bs().shifts[0].segments[0].duration,1);assert.equal(bq('.shift').classList.contains('editing'),true);
+bq('#add-person').click();
+for(const theme of ['light','catppuccin','dark']){
+  bq('#theme').value=theme;bq('#theme').dispatchEvent(new bw.Event('change'));
+  assert.equal(bw.document.documentElement.dataset.theme,theme);assert.equal(bs().settings.theme,theme);
+  assert.equal(bq('#modal').open,true);
+  const themeReload=boot(bs());assert.equal(themeReload.window.document.documentElement.dataset.theme,theme);themeReload.window.close();
+}
+const invalidTheme=bs();invalidTheme.settings.theme='invalid';const fallback=boot(invalidTheme);assert.equal(fallback.window.document.documentElement.dataset.theme,'dark');fallback.window.close();bw.close();
+{const tabsDom=boot(),tw=tabsDom.window,tq=sel=>tw.document.querySelector(sel),tabs=()=>[...tw.document.querySelectorAll('[role=tab]')];
+tq('#add-person').click();
+assert.equal(tq('#add-person').getAttribute('aria-label'),'Einstellungen');assert.equal(tq('#modal').classList.contains('settings-dialog'),true);
+assert.deepEqual(tabs().map(t=>t.textContent.trim()),['Allgemein','Mitarbeitende','Aufgabenvorlagen','Updates']);
+assert.equal(tq('[role=tablist]').getAttribute('aria-orientation'),'vertical');
+assert.equal(tq('#settings-panel-general').hidden,false);assert.equal(tq('#settings-panel-people').hidden,true);assert.equal(tq('#settings-tab-general').getAttribute('aria-selected'),'true');
+tq('#settings-tab-people').click();assert.equal(tq('#settings-panel-people').hidden,false);assert.equal(tq('#settings-panel-general').hidden,true);assert.equal(tq('#settings-tab-people').tabIndex,0);assert.equal(tq('#settings-tab-general').tabIndex,-1);
+tq('#settings-tab-people').dispatchEvent(new tw.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));assert.equal(tq('#settings-panel-presets').hidden,false);assert.equal(tw.document.activeElement.id,'settings-tab-presets');
+tq('#settings-tab-presets').dispatchEvent(new tw.KeyboardEvent('keydown',{key:'End',bubbles:true}));assert.equal(tq('#settings-panel-updates').hidden,false);assert.match(tq('#update-panel').textContent,/Desktop-App/);
+tq('#settings-tab-updates').dispatchEvent(new tw.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));assert.equal(tq('#settings-panel-general').hidden,false);
+tq('#settings-tab-presets').click();tq('#new-preset').click();assert.equal(tq('#modal').classList.contains('settings-dialog'),false);tq('#modal-close').click();
+assert.equal(tq('#settings-panel-presets').hidden,false);assert.equal(tw.document.activeElement.id,'new-preset');
+tq('#modal-close').click();tq('#add-person').click();assert.equal(tq('#settings-panel-presets').hidden,false);tw.close();
+let updateListener,calls=[];const fakeDesktop={updateInfo:async()=>({version:'1.1.0',supported:true,status:'idle'}),checkForUpdates:async()=>{calls.push('check');updateListener({status:'available',latest:'1.2.0'});return {status:'available',latest:'1.2.0'};},downloadUpdate:async()=>{calls.push('download');return {status:'downloading',percent:0};},installUpdate:async()=>{calls.push('install');return {status:'downloaded'};},onUpdateStatus:callback=>{updateListener=callback;return ()=>{};}};
+const updDom=boot(null,win=>{win.flowDesktop=fakeDesktop;}),uw=updDom.window,uq=sel=>uw.document.querySelector(sel),tick=()=>new Promise(r=>setTimeout(r,0));
+await tick();uq('#add-person').click();uq('#settings-tab-updates').click();
+assert.match(uq('.update-version').textContent,/1\.1\.0/);assert.match(uq('.update-status').textContent,/Noch nicht/);
+uq('#update-check').click();await tick();assert.deepEqual(calls,['check']);assert.match(uq('.update-status').textContent,/1\.2\.0 ist verfügbar/);
+uq('#update-download').click();await tick();assert.equal(uq('#update-check').disabled,true);
+updateListener({status:'downloading',percent:42});assert.equal(uq('.update-status progress').value,42);assert.match(uq('.update-status').textContent,/42 %/);
+updateListener({status:'downloaded',latest:'1.2.0',percent:100});uq('#update-install').click();await tick();assert.deepEqual(calls,['check','download','install']);
+updateListener({status:'error',error:'Netzwerk <weg>'});assert.equal(uq('.update-error').textContent,'Netzwerk <weg>');assert.equal(uq('.update-error').children.length,0);uw.close();
+const lateDom=boot(null,win=>{win.flowDesktop={...fakeDesktop,updateInfo:async()=>({version:'1.1.0',supported:false,status:'idle',reason:'Paketmanager nutzen'})};}),lq=sel=>lateDom.window.document.querySelector(sel);
+await tick();lq('#add-person').click();lq('#settings-tab-updates').click();assert.match(lq('.update-note').textContent,/Paketmanager/);assert.equal(lq('#update-check'),null);lateDom.window.close();
+const toastDom=boot(null,win=>{win.flowDesktop=fakeDesktop;});await tick();updateListener({status:'available',latest:'1.3.0'});assert.equal(toastDom.window.document.querySelector('#toast').hidden,false);assert.match(toastDom.window.document.querySelector('#toast').textContent,/1\.3\.0/);toastDom.window.close();}
+console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/persistence, settings tabs, updates, weekly schedules, copies, migration and reload.');w.close();

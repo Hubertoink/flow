@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Flow!
+Comment=Local weekly shift and task planning
+Comment[de]=Lokale Wochen- und Einsatzplanung
+Exec=flow-jugendplan
+Icon=flow-jugendplan
+Terminal=false
+Categories=Office;Calendar;
+StartupWMClass=flow-jugendplan

@@ -1,7 +1,34 @@
-# Flow! JugendPlan
+# Flow!
 
 Lokale Wochen- und Einsatzplanung mit verschiebbaren Personenschichten,
 kopierbaren Teilschichten und Ist-/Sollstunden.
+
+## Oberfläche
+
+Die Einstellungen (Zahnrad im Dock oder **Weitere Optionen → Einstellungen**)
+sind über ein linkes Menü in **Allgemein**, **Mitarbeitende**,
+**Aufgabenvorlagen** und **Updates** gegliedert; die Reiter lassen sich auch
+mit den Pfeiltasten wechseln. Bei schmalen Fenstern liegen sie oben.
+
+Unter **Einstellungen → Allgemein → Design** stehen **Dunkel**, **Hell**
+und **Catppuccin Mocha** zur Wahl. Die Auswahl bleibt beim Neustart erhalten;
+Text, Eingabefelder, Raster und Bildexport verwenden das gewählte Design.
+Die Tagesköpfe trennen Wochentag/Datum und Stundenleiste mit klaren Abständen.
+Der kompakte Tageskopf ist 60 px hoch (mobil 56 px). Die Canvas-Höhe richtet
+sich nach dem verfügbaren Platz und den tatsächlichen Schichten, statt eine
+unnötige Mindesthöhe zu erzwingen. Vertikales Scrollen erscheint nur, wenn
+Schichten einschließlich ausgeklappter Aufgaben mehr Platz benötigen.
+
+Im Bearbeitungsmodus einer Schicht lassen sich Aufgaben an **beiden Enden**
+ziehen, auch wenn sie die ganze Schicht ausfüllen. Die kleinste Dauer beträgt
+15 Minuten, Aufgaben bleiben innerhalb der Schicht. An gemeinsamen Grenzen
+wird die angrenzende Aufgabe entsprechend angepasst. Doppelklick öffnet weiterhin
+die genaue Zeiteingabe; **Übernehmen** speichert und schließt den Editor.
+Ungültige Zeiten lassen ihn mit einem Hinweis offen.
+
+Die Desktop-App hat keine separate native Titelleiste. Freie Flächen im App-Kopf
+sind zum Verschieben des Fensters nutzbar; die nativen Schaltflächen zum
+Minimieren, Maximieren und Schließen bleiben oben rechts erhalten.
 
 ## Windows-App
 
@@ -26,8 +53,19 @@ in der Oberfläche.
 Der Installer ist zunächst **nicht signiert**. Windows kann deshalb eine
 SmartScreen-Warnung anzeigen. Für eine breite öffentliche Distribution sollte
 ein Code-Signing-Zertifikat oder Microsoft Trusted Signing eingerichtet werden.
-Es gibt zunächst keine automatischen Updates: Eine neuere Installer-Version
-wird manuell über die bestehende Installation installiert.
+### Updates
+
+Ab Version 1.1.0 aktualisiert sich die Windows-App aus der App heraus:
+**Einstellungen → Updates → Nach Updates suchen**, dann **Herunterladen** und
+**Neu starten und installieren**. Kurz nach dem Start sucht Flow! zusätzlich
+still nach einer neuen Version und meldet sie per Hinweis; heruntergeladen
+wird nur auf Wunsch. Quelle sind die stabilen GitHub-Releases (`latest.yml`).
+Planungsdaten bleiben erhalten.
+
+Version 1.0.0 enthält noch keinen Updater: Einmalig den Installer 1.1.0
+manuell über die bestehende Installation installieren. Unter Linux gilt der
+In-App-Updater nur für das AppImage; AUR-Installationen werden über den
+Paketmanager aktualisiert (`yay -Syu`), das portable Archiv manuell.
 
 ## Linux und Omarchy
 
@@ -36,6 +74,7 @@ Der Linux-x86_64-Build liefert:
 - `Flow-<Version>-x86_64-linux.AppImage` für den direkten Start;
 - `Flow-<Version>-x86_64-linux.tar.gz` für portable Installationen und OmaStore;
 - `SHA256SUMS` zur Prüfung der Downloads.
+- `Flow-AUR.tar.gz` mit `PKGBUILD` und `.SRCINFO` für das AUR.
 
 Auf Omarchy zunächst aus einer stabilen GitHub-Release herunterladen.
 Das portable Archiv vollständig in einen eigenen Ordner entpacken und
@@ -81,10 +120,51 @@ Dieser akzeptiert laut
 [Einreichungsregeln](https://github.com/omarchy-community/store/blob/main/CONTRIBUTING.md)
 nur Arch-/AUR-/Omarchy-Paketmanager-Rezepte, keine AppImages oder eigenen
 Installationsskripte. Dort wäre später ein gepflegtes AUR-Paket und ein
-Registry-Pull-Request nötig. Beides wurde hier **nicht** eingereicht.
+Registry-Pull-Request nötig. Die Paketierung ist jetzt vorbereitet; AUR und Store wurden **nicht** eingereicht.
 Omarchys offizielles
 [Paket-Handbuch](https://github.com/basecamp/omarchy/blob/master/manual/29-other-packages.md)
 beschreibt die Installation über Arch und AUR, nicht diesen Community-Store.
+
+### AUR-Paket für Omarchy
+
+Die [Paketvorlage](packaging/aur/PKGBUILD.in) erzeugt **flow-jugendplan-bin**.
+Sie nutzt das versionierte portable Release, dessen tatsächliche SHA256-Prüfsumme,
+einen Menüeintrag und den Befehl `flow-jugendplan`. Der getestete Electron-Runtime
+wird mitgeliefert, damit die App nicht von einem abweichenden System-Electron
+abhängt. Das Paket installiert nach `/opt/flow-jugendplan` und lässt die
+Chromium-Sandbox aktiviert; deren Helper wird root-eigen mit Modus 4755 installiert.
+Flow! steht unter der [MIT-Lizenz](LICENSE); die Electron-/Chromium- und
+Bibliothekslizenzen werden ebenfalls mitgeliefert.
+
+Der Linux-Workflow baut das Rezept in einem Arch-Linux-Container mit
+`makepkg --nodeps`, prüft dabei Quellen-Prüfsumme und Paketdateien und erzeugt
+`.SRCINFO`. Das ersetzt **keinen** Installations- und Wayland-Test auf Omarchy.
+Lokal auf Windows werden die Rezeptgenerierung und Metadaten geprüft;
+`makepkg` selbst benötigt Arch Linux.
+
+Vor der Veröffentlichung:
+
+1. Eine **neue stabile Version** veröffentlichen, z. B. `npm version patch`,
+   danach Branch und neuen Tag pushen. Ab `v1.1.0` enthalten Releases das
+   AUR-Rezept; Tags/Release-Dateien nicht nachträglich überschreiben.
+2. `Flow-AUR.tar.gz` aus dieser neuen Release entpacken und auf Omarchy als
+   normaler Benutzer `makepkg -si` ausführen. Fensterknöpfe, Drag/Resize,
+   Speichern nach Neustart und Exporte in Hyprland testen.
+3. Prüfen, ob der Paketname im AUR noch frei ist. Mit einem AUR-Konto und
+   hinterlegtem SSH-Schlüssel `ssh://aur@aur.archlinux.org/flow-jugendplan-bin.git`
+   klonen. `PKGBUILD` und `.SRCINFO` hineinkopieren, committen und pushen.
+   **Keine Binärdateien** ins AUR hochladen.
+4. Danach ist die Installation mit `yay -S flow-jugendplan-bin` möglich.
+   Neue Flow!-Releases benötigen jeweils die aktualisierten beiden Rezeptdateien
+   im AUR; das geschieht nicht automatisch durch einen GitHub-Release.
+5. Optional den Community-Store per Registry-PR um dieses AUR-Paket ergänzen.
+   Dieser verlangt einen aktiven Maintainer und eine angemessene Zahl an Votes;
+   eine Aufnahme direkt nach dem ersten Upload ist daher nicht garantiert.
+
+Geschätzter verbleibender Aufwand nach erfolgreichem CI-Build:
+**1–2 Stunden** für Omarchy-Test, AUR-Konto/SSH und ersten Upload, sofern keine
+Linux-spezifischen Probleme auftreten. Pro Release etwa **5–15 Minuten**
+für Rezept-Update und Prüfung. Store-Review und mögliche Fehlerbehebung kommen hinzu.
 
 ## Exporte
 
@@ -144,7 +224,8 @@ npm ci
 npm run dist:win
 ```
 
-Ergebnis: `release\Flow-Setup-1.0.0-x64.exe`.
+Ergebnis: `release\Flow-Setup-<Version>-x64.exe` sowie `latest.yml` und
+`.blockmap` für den In-App-Updater.
 Build-Ausgaben gehören nicht ins Git-Repository.
 
 Linux-Distribution auf Linux mit `npm run dist:linux` erstellen.
@@ -166,7 +247,10 @@ git push --tags
 ```
 
 Ein Tag `v<Version>` startet den Workflow und veröffentlicht nach erfolgreichem
-Build die Distributionen auf der GitHub-Releases-Seite. Das erste Release kann mit
+Build die Distributionen samt Update-Metadaten (`latest.yml`,
+`latest-linux.yml`, Blockmap) auf der GitHub-Releases-Seite. Diese Dateien
+müssen in jeder Release enthalten sein, sonst finden installierte Apps das
+Update nicht. Das erste Release kann mit
 `git tag v1.0.0` und `git push origin v1.0.0` angelegt werden.
 Signing-Zertifikate und Tokens gehören ausschließlich in GitHub-Secrets,
 niemals ins Repository.

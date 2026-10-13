@@ -15,7 +15,7 @@ function styleExcelHeader(sheet,rowNumber){
   row.eachCell(cell=>{cell.fill=fillExcel('FF263449');cell.font={name:'Calibri',size:11,bold:true,color:{argb:'FFFFFFFF'}};cell.alignment={vertical:'middle',wrapText:true};});
 }
 function buildWeeklyWorkbook(snapshot){
-  const workbook=new ExcelJS.Workbook();workbook.creator='Flow! JugendPlan';
+  const workbook=new ExcelJS.Workbook();workbook.creator='Flow!';
   const plan=workbook.addWorksheet('Wochenplan',{views:[{state:'frozen',xSplit:1,ySplit:4}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
   const headers=['Person',...snapshot.days.flatMap((date,i)=>{const day=weekdays[i]+' '+parseDate(date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});return [day+' von',day+' bis'];}),'Ist-Stunden (Mo–So)','Soll-Stunden'];
   const last=headers.length,actualColumn=last-1;

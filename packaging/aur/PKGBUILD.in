@@ -1,0 +1,33 @@
+# Maintainer: Hubertoink <https://github.com/Hubertoink>
+pkgname=flow-jugendplan-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Flow! - Local weekly shift and task planning'
+arch=('x86_64')
+url='https://github.com/Hubertoink/flow'
+license=('MIT')
+depends=('alsa-lib' 'at-spi2-core' 'cairo' 'dbus' 'expat' 'gcc-libs'
+         'glib2' 'glibc' 'gtk3' 'libcups' 'libdrm' 'libx11' 'libxcb'
+         'libxcomposite' 'libxdamage' 'libxext' 'libxfixes' 'libxkbcommon'
+         'libxrandr' 'mesa' 'nspr' 'nss' 'pango')
+provides=('flow-jugendplan')
+conflicts=('flow-jugendplan')
+options=('!strip')
+source=("Flow-${pkgver}-x86_64-linux.tar.gz::${url}/releases/download/v${pkgver}/Flow-${pkgver}-x86_64-linux.tar.gz")
+sha256sums=('@SHA256@')
+
+package() {
+  install -d "${pkgdir}/opt/flow-jugendplan" "${pkgdir}/usr/bin"
+  cp -a "${srcdir}/flow-jugendplan" "${srcdir}/chrome-sandbox" \
+    "${srcdir}/chrome_crashpad_handler" "${srcdir}/resources" \
+    "${srcdir}/locales" "${srcdir}/"*.pak "${srcdir}/"*.dat \
+    "${srcdir}/"*.bin "${srcdir}/"*.so* "${srcdir}/vk_swiftshader_icd.json" \
+    "${pkgdir}/opt/flow-jugendplan/"
+  chmod 4755 "${pkgdir}/opt/flow-jugendplan/chrome-sandbox"
+  install -Dm755 "${srcdir}/flow-launcher" "${pkgdir}/usr/bin/flow-jugendplan"
+  install -Dm644 "${srcdir}/flow.desktop" "${pkgdir}/usr/share/applications/flow-jugendplan.desktop"
+  install -Dm644 "${srcdir}/flow.png" "${pkgdir}/usr/share/pixmaps/flow-jugendplan.png"
+  install -Dm644 "${srcdir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm644 "${srcdir}/LICENSE.electron.txt" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE.electron.txt"
+  install -Dm644 "${srcdir}/LICENSES.chromium.html" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSES.chromium.html"
+}

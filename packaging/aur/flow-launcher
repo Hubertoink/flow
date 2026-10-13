@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /opt/flow-jugendplan/flow-jugendplan "$@"

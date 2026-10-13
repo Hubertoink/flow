@@ -1,4 +1,4 @@
-const {app,BrowserWindow,Menu,protocol,net,dialog}=require('electron');
+const {app,BrowserWindow,Menu,protocol,net,dialog,ipcMain}=require('electron');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 
@@ -6,12 +6,73 @@ app.setName('Flow!');
 app.setPath('userData',path.join(app.getPath('appData'),'Flow!'));
 protocol.registerSchemesAsPrivileged([{scheme:'flow',privileges:{standard:true,secure:true,supportFetchAPI:true,corsEnabled:true}}]);
 
+let mainWindow=null,updater=null,updateState={status:'idle'};
+function updateSupport(){
+  if(!app.isPackaged)return {supported:false,reason:'Updates sind nur in der installierten App verfügbar.'};
+  if(process.platform==='linux'&&!process.env.APPIMAGE)return {supported:false,reason:'Diese Installation wird über den Paketmanager aktualisiert (z. B. yay -Syu).'};
+  if(!['win32','linux'].includes(process.platform))return {supported:false,reason:'Updates sind auf diesem System nicht verfügbar.'};
+  return {supported:true};
+}
+function sendUpdate(patch){
+  updateState={...updateState,...patch};
+  if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('flow-update-status',updateState);
+}
+function getUpdater(){
+  if(updater)return updater;
+  ({autoUpdater:updater}=require('electron-updater'));
+  updater.autoDownload=false;
+  updater.autoInstallOnAppQuit=true;
+  updater.on('checking-for-update',()=>sendUpdate({status:'checking',error:null}));
+  updater.on('update-available',info=>sendUpdate({status:'available',latest:info.version,error:null}));
+  updater.on('update-not-available',info=>sendUpdate({status:'current',latest:info.version,error:null}));
+  updater.on('download-progress',progress=>sendUpdate({status:'downloading',percent:Math.round(progress.percent)}));
+  updater.on('update-downloaded',info=>sendUpdate({status:'downloaded',latest:info.version,percent:100}));
+  updater.on('error',error=>{console.error('Flow! Update fehlgeschlagen:',error);sendUpdate({status:'error',error:error.message});});
+  return updater;
+}
+ipcMain.handle('flow-update',async(event,action)=>{
+  if(!mainWindow||event.sender!==mainWindow.webContents)throw new Error('Unbekannter Absender');
+  const support=updateSupport(),info=()=>({version:require('../package.json').version,...support,...updateState});
+  if(action==='info')return info();
+  if(!support.supported)throw new Error(support.reason);
+  if(action==='check'){
+    if(['checking','downloading'].includes(updateState.status))return info();
+    sendUpdate({status:'checking',error:null});
+    try{await getUpdater().checkForUpdates();}catch(error){sendUpdate({status:'error',error:error.message});}
+    return info();
+  }
+  if(action==='download'){
+    if(updateState.status!=='available')throw new Error('Kein Update zum Herunterladen verfügbar.');
+    sendUpdate({status:'downloading',percent:0});
+    getUpdater().downloadUpdate().catch(error=>sendUpdate({status:'error',error:error.message}));
+    return info();
+  }
+  if(action==='install'){
+    if(updateState.status!=='downloaded')throw new Error('Das Update ist noch nicht heruntergeladen.');
+    setImmediate(()=>getUpdater().quitAndInstall(false,true));
+    return info();
+  }
+  throw new Error('Unbekannte Update-Aktion: '+action);
+});
+
 function createWindow(){
   const window=new BrowserWindow({
-    width:1440,height:960,minWidth:850,minHeight:650,title:'Flow! - JugendPlan',
+    width:1440,height:960,minWidth:850,minHeight:650,title:'Flow!',
+    autoHideMenuBar:true,
+    titleBarStyle:'hidden',titleBarOverlay:{color:'#00000000',symbolColor:'#eceff6',height:40},
     backgroundColor:'#10151f',icon:path.join(__dirname,'..','dist','assets',process.platform==='win32'?'Flow__Logo.ico':'Flow!_Logo.png'),
-    webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true},
+    webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,preload:path.join(__dirname,'preload.cjs')},
   });
+  const updateTheme=(event,theme)=>{
+    if(event.sender!==window.webContents)return;
+    const colors={dark:'#eceff6',light:'#202a3a',catppuccin:'#cdd6f4'};
+    if(!Object.hasOwn(colors,theme)){console.error('Flow! Unbekanntes Fensterdesign:',theme);return;}
+    window.setTitleBarOverlay({symbolColor:colors[theme]});
+    window.setBackgroundColor({dark:'#10151f',light:'#eef1f7',catppuccin:'#1e1e2e'}[theme]);
+  };
+  ipcMain.on('flow-theme',updateTheme);
+  window.once('closed',()=>ipcMain.removeListener('flow-theme',updateTheme));
+  mainWindow=window;
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',(event,url)=>{if(url!=='flow://app/index.html'&&url!=='flow://app/')event.preventDefault();});
   window.webContents.on('will-attach-webview',event=>event.preventDefault());

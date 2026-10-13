@@ -4,15 +4,16 @@
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#10151f">
   <meta name="description" content="Flow! — Menschenzentrierte Einsatzplanung für kleine Teams. Wer übernimmt wann welche Verantwortung?">
-  <title>Flow! — JugendPlan</title>
+  <title>Flow!</title>
   <link rel="icon" type="image/x-icon" href="assets/Flow__Logo.ico">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="canvas.css">
+  <link rel="stylesheet" href="themes.css">
 </head>
 <body>
   <div id="app">
     <header class="topbar">
-      <div class="brand"><img class="brand-logo" src="assets/Flow!_Logo.png" alt="Flow!" width="44" height="44"><div><a class="wordmark" href="./">JugendPlan<span class="brand-dot">.</span></a></div></div>
+      <div class="brand"><img class="brand-logo" src="assets/Flow!_Logo.png" alt="Flow!" width="44" height="44"><div><a class="wordmark" href="./">Flow<span class="brand-dot">!</span></a></div></div>
       <nav class="week-nav" aria-label="Wochennavigation"><button class="icon-button" id="prev" aria-label="Vorherige Woche" data-icon="chevron-left"></button><div class="date-wrap"><span id="date-range"></span><span class="week-number" id="week-number"></span></div><button class="icon-button" id="next" aria-label="Nächste Woche" data-icon="chevron-right"></button></nav>
       <div class="header-actions"><button class="today-button" id="today">Heute</button><div class="menu-wrap"><button class="icon-button" id="more" aria-label="Weitere Optionen" aria-expanded="false" data-icon="more"></button><div id="menu" class="dropdown" hidden><div class="menu-label">WOCHENPLAN</div><button data-action="excel" data-icon="download">Als Excel exportieren</button><button data-action="image" data-icon="download">Canvas als Bild exportieren</button><button data-action="export" data-icon="download">Als CSV exportieren</button><button data-action="backup" data-icon="save">Plan als JSON speichern</button><button data-action="print" data-icon="print">Drucken <kbd>⌘ P</kbd></button><div class="menu-divider"></div><button data-action="settings" data-icon="settings">Einstellungen</button></div></div></div>
     </header>
