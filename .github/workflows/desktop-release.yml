@@ -29,7 +29,8 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Check update metadata
         shell: bash
-        run: grep -F "path: Flow-Setup-" release/latest.yml
+        run: |
+          grep -F "path: Flow-Setup-" release/latest.yml
       - uses: actions/upload-artifact@v4
         with:
           name: Flow-Windows
@@ -54,7 +55,9 @@ jobs:
       - run: xvfb-run --auto-servernum npm run test:desktop
       - run: npx electron-builder --linux AppImage --x64 --publish never
       - run: node package-linux.mjs
-      - run: grep -F "path: Flow-" release/latest-linux.yml
+      - name: Check Linux update metadata
+        run: |
+          grep -F "path: Flow-" release/latest-linux.yml
       - name: Check portable Linux package
         run: |
           tar -tzf release/Flow-*-x86_64-linux.tar.gz | grep -Fx './flow-jugendplan'
