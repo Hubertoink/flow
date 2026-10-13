@@ -32,7 +32,8 @@ function readPlanTransfer(text){
   if(!object(input.settings))fail('Einstellungen fehlen.');
   const settings=input.settings;
   if(settings.background!==undefined&&settings.background!==''&&!backgrounds.some(background=>background.id===settings.background))fail('Der Hintergrund ist unbekannt.');
-  if(typeof settings.weekend!=='boolean'||(settings.theme!==undefined&&!themes.includes(settings.theme))||(settings.zoom!==undefined&&!number(settings.zoom,.5,2)))fail('Design, Wochenende oder Zoom sind ungültig.');
+  if((settings.weekend!==undefined&&typeof settings.weekend!=='boolean')||(settings.saturday!==undefined&&typeof settings.saturday!=='boolean')||(settings.sunday!==undefined&&typeof settings.sunday!=='boolean')||(typeof settings.weekend!=='boolean'&&(typeof settings.saturday!=='boolean'||typeof settings.sunday!=='boolean'))||(settings.theme!==undefined&&!themes.includes(settings.theme))||(settings.zoom!==undefined&&!number(settings.zoom,.5,2)))fail('Design, angezeigte Wochentage oder Zoom sind ungültig.');
+  const saturday=settings.saturday??settings.weekend,sunday=settings.sunday??settings.weekend;
   if(settings.breakRules!==undefined&&(!Array.isArray(settings.breakRules)||settings.breakRules.length>100))fail('Pausenregeln sind ungültig.');
   const rules=(settings.breakRules||[]).map(rule=>{
     if(!object(rule)||!number(rule.after,.25,24)||rule.after*4%1!==0||!number(rule.minutes,0,1439)||!Number.isInteger(rule.minutes)||rule.minutes>=rule.after*60)fail('Eine Pausenstufe ist ungültig.');
@@ -77,7 +78,7 @@ function readPlanTransfer(text){
     return {id:s.id,person:s.person,date:s.date,start:s.start,length,y,segments};
   });
   unique(shifts.map(s=>s.id),'Schichten');unique(segmentIds,'Aufgaben');
-  return {week:selectedWeek,plan:{version:3,people,shifts,taskTypes,settings:{weekend:settings.weekend,breakRules:rules,...(settings.theme?{theme:settings.theme}:{}),...(settings.background!==undefined?{background:settings.background}:{}),...(settings.zoom!==undefined?{zoom:settings.zoom}:{})}}};
+  return {week:selectedWeek,plan:{version:3,people,shifts,taskTypes,settings:{weekend:saturday&&sunday,saturday,sunday,breakRules:rules,...(settings.theme?{theme:settings.theme}:{}),...(settings.background!==undefined?{background:settings.background}:{}),...(settings.zoom!==undefined?{zoom:settings.zoom}:{})}}};
 }
 function applyImportedPlan(transfer){
   clearDrop();closePanel();closeWeekInfo();closeMonthPicker();
@@ -131,9 +132,9 @@ function openPlanImport(){
   });
 }
 
-function weeklyExportSnapshot(includeWeekend=false){
+function weeklyExportSnapshot(daySettings=false){
   const start=dateKey(week),end=dateKey(addDays(week,6)),shifts=structuredClone(data.shifts.filter(s=>s.date>=start&&s.date<=end));
-  const days=Array.from({length:includeWeekend?7:5},(_,i)=>dateKey(addDays(week,i)));
+  const days=weekDayIndices(typeof daySettings==='boolean'?{weekend:daySettings}:daySettings).map(i=>dateKey(addDays(week,i)));
   const people=structuredClone(data.people.filter(p=>shifts.some(s=>s.person===p.id)||Array.from({length:7},(_,i)=>dateKey(addDays(week,i))).some(date=>activeOn(p,date))))
     .sort((a,b)=>a.name.localeCompare(b.name,'de')||a.id.localeCompare(b.id));
   return {start,end,days,people,shifts,breakRules:structuredClone(breakRules()),weekNumber:isoWeek(week)};
@@ -148,7 +149,7 @@ function styleExcelHeader(sheet,rowNumber){
 function buildWeeklyWorkbook(snapshot){
   const workbook=new ExcelJS.Workbook();workbook.creator='Flow!';
   const plan=workbook.addWorksheet('Wochenplan',{views:[{state:'frozen',xSplit:1,ySplit:4}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
-  const headers=['Person',...snapshot.days.flatMap((date,i)=>{const day=weekdays[i]+' '+parseDate(date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});return [day+' von',day+' bis'];}),'Ist netto (Mo–So)','Soll-Stunden netto'];
+  const headers=['Person',...snapshot.days.flatMap(date=>{const day=weekdays[(parseDate(date).getDay()+6)%7]+' '+parseDate(date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});return [day+' von',day+' bis'];}),'Ist netto (Mo–So)','Soll-Stunden netto'];
   const last=headers.length,actualColumn=last-1;
   plan.columns=headers.map((name,i)=>({width:i===0?24:i>=last-2?20:14}));
   plan.mergeCells(1,1,1,last);plan.getCell('A1').value=`Flow! Wochenplan · KW ${snapshot.weekNumber}`;
@@ -209,13 +210,17 @@ function buildCanvasExport(snapshot,expanded){
   root.style.width=(snapshot.days.length*560+48)+'px';
   root.innerHTML=`<header class="canvas-export-title"><img src="assets/Flow!_Logo.png" alt="" width="44" height="44"><strong>Flow! · KW ${snapshot.weekNumber}</strong><span>${esc(parseDate(snapshot.start).toLocaleDateString('de-DE'))} – ${esc(parseDate(snapshot.end).toLocaleDateString('de-DE'))} · ${expanded?'Teilschichten ausgeklappt':'Kompakte Schichten'}</span></header><div class="timeline export-timeline"></div>`;
   const grid=root.querySelector('.timeline');grid.style.gridTemplateColumns=`repeat(${snapshot.days.length},minmax(0,1fr))`;grid.style.setProperty('--days',snapshot.days.length);
-  snapshot.days.forEach((date,i)=>{
+  snapshot.days.forEach(date=>{
     const column=document.createElement('section');column.className='day-column';
-    column.innerHTML=`<div class="day-head"><div class="day-title"><span class="day-name">${weekdays[i]}</span><span class="day-date">${esc(parseDate(date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}))}</span></div><div class="hours">${[8,10,12,14,16,18,20,22,24].map(hour=>`<span>${String(hour).padStart(2,'0')}</span>`).join('')}</div></div><div class="day-cell"></div>`;
+    column.innerHTML=`<div class="day-head"><div class="day-title"><span class="day-name">${weekdays[(parseDate(date).getDay()+6)%7]}</span><span class="day-date">${esc(parseDate(date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}))}</span></div><div class="hours">${[8,10,12,14,16,18,20,22,24].map(hour=>`<span>${String(hour).padStart(2,'0')}</span>`).join('')}</div></div><div class="day-cell"></div>`;
     const cell=column.querySelector('.day-cell'),shifts=snapshot.shifts.filter(s=>s.date===date).toSorted((a,b)=>a.y-b.y||a.start-b.start);
     let bottom=32;
     shifts.forEach(s=>{
       const holder=document.createElement('div');holder.innerHTML=shiftMarkup(s);const bar=holder.firstElementChild;
+      const time=shiftTime(s,snapshot.shifts,snapshot.breakRules||[]);
+      bar.querySelector('.shift-time').textContent=time;
+      const label=`${snapshot.people.find(p=>p.id===s.person).name}, ${time} netto`;
+      bar.title=label;bar.setAttribute('aria-label',label);
       const y=Math.max(s.y,bottom),extra=expanded&&s.segments.length?12+s.segments.length*48:0;
       bar.classList.toggle('editing',expanded);bar.style.top=y+'px';bar.querySelectorAll('.shift-edit,.shift-copy,.task-copy,.resize-handle,.task-resize').forEach(el=>el.remove());
       bar.removeAttribute('tabindex');bar.querySelectorAll('button').forEach(el=>el.tabIndex=-1);
@@ -252,12 +257,12 @@ async function exportCanvasPNG(snapshot,expanded){
 }
 
 function openExport(kind){
-  const isExcel=kind==='excel',hasWeekend=data.settings.weekend||data.shifts.some(s=>s.date>=dateKey(addDays(week,5))&&s.date<=dateKey(addDays(week,6)));
-  openModal(`${modalTop(isExcel?'Excel-Wochenplan exportieren':'Canvas als Bild exportieren')}<form id="export-form"><p class="modal-note">${isExcel?'Eine Zeile pro Person, Tageszeiten links und Ist-/Sollstunden rechts. Die Stunden summieren immer Montag bis Sonntag. Ein zweites Blatt enthält die sortierbaren Schicht- und Aufgabendetails.':'Exportiert den gesamten Wochen-Canvas, auch außerhalb des sichtbaren Ausschnitts. Alle Tage werden gleich breit dargestellt; der Live-Plan bleibt unverändert.'}</p>${isExcel?'':`<fieldset class="export-modes"><legend>Darstellung der Schichten</legend><label><input type="radio" name="mode" value="expanded" checked><span><strong>Alle ausgeklappt</strong><small>Jede Teilschicht in einer eigenen Zeile</small></span></label><label><input type="radio" name="mode" value="compact"><span><strong>Alle eingeklappt</strong><small>Kompakte Personenschichten mit Aufgabenfarben</small></span></label></fieldset>`}<label class="export-weekend"><input type="checkbox" name="weekend" ${hasWeekend?'checked':''}><span>Samstag und Sonntag mit anzeigen</span></label><p id="export-error" class="form-error" role="alert"></p><div class="form-actions"><button type="button" id="cancel-export" class="secondary-button">Abbrechen</button><button id="start-export" class="primary-button">${isExcel?'Excel herunterladen':'PNG herunterladen'}</button></div></form>`);
+  const isExcel=kind==='excel',hasDay=(day,index)=>data.settings[day]||data.shifts.some(s=>s.date===dateKey(addDays(week,index)));
+  openModal(`${modalTop(isExcel?'Excel-Wochenplan exportieren':'Canvas als Bild exportieren')}<form id="export-form"><p class="modal-note">${isExcel?'Eine Zeile pro Person, Tageszeiten links und Ist-/Sollstunden rechts. Die Stunden summieren immer Montag bis Sonntag. Ein zweites Blatt enthält die sortierbaren Schicht- und Aufgabendetails.':'Exportiert den gesamten Wochen-Canvas, auch außerhalb des sichtbaren Ausschnitts. Alle Tage werden gleich breit dargestellt; der Live-Plan bleibt unverändert.'}</p>${isExcel?'':`<fieldset class="export-modes"><legend>Darstellung der Schichten</legend><label><input type="radio" name="mode" value="expanded" checked><span><strong>Alle ausgeklappt</strong><small>Jede Teilschicht in einer eigenen Zeile</small></span></label><label><input type="radio" name="mode" value="compact"><span><strong>Alle eingeklappt</strong><small>Kompakte Personenschichten mit Aufgabenfarben</small></span></label></fieldset>`}${[['saturday','Samstag',5],['sunday','Sonntag',6]].map(([day,label,index])=>`<label class="export-weekend"><input type="checkbox" name="${day}" ${hasDay(day,index)?'checked':''}><span>${label} mit anzeigen</span></label>`).join('')}<p id="export-error" class="form-error" role="alert"></p><div class="form-actions"><button type="button" id="cancel-export" class="secondary-button">Abbrechen</button><button id="start-export" class="primary-button">${isExcel?'Excel herunterladen':'PNG herunterladen'}</button></div></form>`);
   $('#cancel-export').onclick=()=>$('#modal').close();
   $('#export-form').onsubmit=async e=>{
     e.preventDefault();const form=e.currentTarget,button=form.querySelector('#start-export');if(button.disabled)return;
-    const snapshot=weeklyExportSnapshot(form.querySelector('[name=weekend]').checked),expanded=form.querySelector('[name=mode]:checked')?.value==='expanded',error=form.querySelector('#export-error');
+    const snapshot=weeklyExportSnapshot({saturday:form.querySelector('[name=saturday]').checked,sunday:form.querySelector('[name=sunday]').checked}),expanded=form.querySelector('[name=mode]:checked')?.value==='expanded',error=form.querySelector('#export-error');
     error.textContent='';button.disabled=true;button.textContent='Export wird erstellt …';form.setAttribute('aria-busy','true');
     try{
       if(isExcel){const buffer=await buildWeeklyWorkbook(snapshot).xlsx.writeBuffer();download(buffer,EXCEL_TYPE,`Flow-${snapshot.start}.xlsx`);}

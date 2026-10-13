@@ -32,6 +32,18 @@ w.localStorage.setItem('flow-plan-v1',JSON.stringify(fixture));
 w.runExportCode(`data=JSON.parse(localStorage.getItem('flow-plan-v1'));refresh();persist();`);
 const snapshot=w.runExportCode('weeklyExportSnapshot(false)');
 assert.equal(snapshot.days.length,5);assert.deepEqual([...snapshot.people].map(p=>p.name),['Anna','Berta','Zoë']);assert.equal(snapshot.shifts.length,5);
+for(const [saturday,sunday] of [[true,false],[false,true],[true,true],[false,false]]){
+  const split=w.runExportCode(`weeklyExportSnapshot({saturday:${saturday},sunday:${sunday}})`);
+  assert.deepEqual([...split.days],[monday,day(1),day(2),day(3),day(4),...(saturday?[day(5)]:[]),...(sunday?[day(6)]:[])]);
+  const book=w.buildWeeklyWorkbook(split),sheet=book.getWorksheet('Wochenplan');
+  assert.equal(sheet.columnCount,13+2*Number(saturday)+2*Number(sunday));
+  if(sunday&&!saturday)assert.match(sheet.getRow(4).getCell(12).value,/Sonntag/);
+  if(saturday)assert.match(sheet.getRow(4).getCell(12).value,/Samstag/);
+  const image=w.buildCanvasExport(split,false);
+  assert.deepEqual([...image.querySelectorAll('.day-name')].map(el=>el.textContent),['Montag','Dienstag','Mittwoch','Donnerstag','Freitag',...(saturday?['Samstag']:[]),...(sunday?['Sonntag']:[])]);
+  assert.equal(split.shifts.length,5);
+  image.remove();
+}
 w.runExportCode(`data.shifts[0].segments[0].label='Andere Aufgabe';`);
 assert.equal(snapshot.shifts[0].segments[0].label,'=SUM(A1:A2)');
 w.runExportCode(`data=JSON.parse(localStorage.getItem('flow-plan-v1'));`);
@@ -67,6 +79,18 @@ w.runExportCode('data.settings.breakRules=[{after:6,minutes:30}];');
 const frozenRules=w.runExportCode('weeklyExportSnapshot(false)');
 w.runExportCode('data.settings.breakRules[0].minutes=45;');
 assert.equal(frozenRules.breakRules[0].minutes,30);
+for(const expanded of [false,true]){
+  const root=w.buildCanvasExport(frozenRules,expanded);
+  assert.equal(root.querySelector('[data-shift="monday-shift"] .shift-time').textContent,'08:15–16:00 (7,25 h)');
+  assert.equal(root.querySelector('[data-shift="friday-shift"] .shift-time').textContent,'17:00–24:00 (6,5 h)');
+  root.remove();
+}
+const splitDay=w.runExportCode('weeklyExportSnapshot(false)');
+splitDay.breakRules=[{after:4,minutes:30}];
+const splitImage=w.buildCanvasExport(splitDay,false);
+assert.equal(splitImage.querySelector('[data-shift="anna-one"] .shift-time').textContent,'09:00–11:00 (1,75 h)');
+assert.equal(splitImage.querySelector('[data-shift="anna-two"] .shift-time').textContent,'14:00–16:00 (1,75 h)');
+splitImage.remove();
 w.runExportCode('delete data.settings.breakRules;');
 
 // Export DOM covers all days and lanes, without changing focus, zoom, storage or live markup.
@@ -97,8 +121,8 @@ w.htmlToImage.toBlob=async()=>{throw new Error('PNG-Testfehler');};await assert.
 Object.defineProperty(w.HTMLElement.prototype,'offsetHeight',{configurable:true,get(){return 20000;}});
 await assert.rejects(w.exportCanvasPNG(snapshot,false),/zu groß/);assert.equal(q('.canvas-export'),null);
 
-q('[data-action="excel"]').click();assert.equal(q('#modal').open,true);assert.equal(q('[name=weekend]').checked,true);
-q('[name=weekend]').checked=false;await q('#export-form').onsubmit({preventDefault(){},currentTarget:q('#export-form')});
+q('[data-action="excel"]').click();assert.equal(q('#modal').open,true);assert.equal(q('[name=saturday]').checked,false);assert.equal(q('[name=sunday]').checked,true);
+q('[name=sunday]').checked=false;await q('#export-form').onsubmit({preventDefault(){},currentTarget:q('#export-form')});
 assert.equal(downloads.at(-1).type,w.EXCEL_TYPE||'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');assert.match(downloads.at(-1).name,/\.xlsx$/);assert.equal(q('#modal').open,false);
 const downloaded=new ExcelJS.Workbook();await downloaded.xlsx.load(Buffer.from(downloads.at(-1).content));assert.equal(downloaded.getWorksheet('Wochenplan').columnCount,13);
 q('[data-action="image"]').click();assert.equal(q('[name=mode]:checked').value,'expanded');const form=q('#export-form'),logs=[];w.console.error=(...args)=>logs.push(args);
@@ -132,6 +156,15 @@ invalidPlan(t=>t.plan.settings.breakRules=[{after:6,minutes:400}]);
 invalidPlan(t=>t.plan.settings.breakRules=[{after:6,minutes:30},{after:9,minutes:20}]);
 invalidPlan(t=>t.plan.taskTypes=null);
 invalidPlan(t=>t.plan.settings.background='../../outside.png');
+invalidPlan(t=>t.plan.settings.saturday='yes');
+invalidPlan(t=>t.plan.settings.sunday=1);
+const saturdayTransfer=structuredClone(transfer);saturdayTransfer.plan.settings.saturday=true;saturdayTransfer.plan.settings.sunday=false;
+delete saturdayTransfer.plan.settings.weekend;
+const saturdayPlan=w.readPlanTransfer(JSON.stringify(saturdayTransfer)).plan;
+assert.equal(saturdayPlan.settings.saturday,true);assert.equal(saturdayPlan.settings.sunday,false);
+const oldWeekend=structuredClone(old);oldWeekend.settings.weekend=true;
+const weekendMigration=w.readPlanTransfer(JSON.stringify(oldWeekend)).plan.settings;
+assert.equal(weekendMigration.saturday,true);assert.equal(weekendMigration.sunday,true);
 const backgroundTransfer=structuredClone(transfer);backgroundTransfer.plan.settings.background='forest';
 assert.equal(w.readPlanTransfer(JSON.stringify(backgroundTransfer)).plan.settings.background,'forest');
 assert.throws(()=>w.readPlanTransfer('{bad'),/gültiges JSON/);
@@ -139,7 +172,7 @@ assert.throws(()=>w.readPlanTransfer(' '.repeat(10*1024*1024+1)),/10 MB/);
 
 const importCandidate=structuredClone(transfer);
 importCandidate.week=day(7);importCandidate.plan.people[0].name='Übertragene Person <Team>';
-importCandidate.plan.settings.theme='catppuccin';importCandidate.plan.settings.weekend=true;importCandidate.plan.settings.background='forest';
+importCandidate.plan.settings.theme='catppuccin';importCandidate.plan.settings.saturday=true;importCandidate.plan.settings.sunday=false;importCandidate.plan.settings.background='forest';
 const candidateText=JSON.stringify(importCandidate),planBefore=storage(),weekBefore=w.runExportCode('dateKey(week)');
 const chooseImport=async(text,name='Plan.json')=>{
   const input=q('#plan-import-file');
@@ -166,6 +199,8 @@ q('#plan-import-form').dispatchEvent(new w.Event('submit',{cancelable:true}));
 assert.equal(q('#modal').open,false);assert.equal(w.runExportCode('dateKey(week)'),importCandidate.week);
 assert.equal(w.runExportCode('data.people[0].name'),'Übertragene Person <Team>');
 assert.equal(d.documentElement.dataset.theme,'catppuccin');assert.equal(q('#zoom-value').textContent,'125%');
+assert.equal(JSON.parse(storage()).settings.saturday,true);assert.equal(JSON.parse(storage()).settings.sunday,false);
+assert.equal(d.querySelectorAll('.day-head').length,6);assert.equal([...d.querySelectorAll('.day-name')].at(-1).textContent,'Samstag');
 assert.match(d.documentElement.style.getPropertyValue('--background-image'),/foggy/);
 assert.equal(q('#copy-tray').hidden,true);assert.equal(q('.editing'),null);
 assert.equal(JSON.parse(storage()).settings.breakRules[0].minutes,30);

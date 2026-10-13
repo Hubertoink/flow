@@ -5,6 +5,24 @@ kopierbaren Teilschichten und Ist-/Sollstunden.
 
 ## Oberfläche
 
+Unter **Allgemein** lassen sich **Samstag anzeigen** und **Sonntag anzeigen**
+unabhängig aktivieren. Dieselbe Auswahl gibt es beim Excel- und PNG-Export.
+Ausgeblendete Tage behalten ihre Schichten; die Wochenstunden zählen weiterhin
+Montag bis Sonntag. Die Auswahl wird gespeichert und beim Plantransfer übernommen.
+Die bisherige Einstellung „Wochenende anzeigen“ wird in beide Tagesoptionen
+überführt.
+
+Auch an Tagen mit 0 Sollstunden können Mitarbeitende eingeplant werden.
+Neue Schichten starten dort mit 3 Stunden Anwesenheit und können danach wie
+gewohnt angepasst werden. Tages- und Wochensoll bleiben unverändert; Pausen
+werden nach den eingestellten Regeln von den Iststunden abgezogen.
+
+Schichten zeigen hinter der Uhrzeit ihre Netto-Arbeitszeit in Klammern,
+zum Beispiel **10:00–18:30 (8 h)** bei 30 Minuten Pause. Die Anzeige aktualisiert
+sich beim Ändern der Schichtdauer oder Pausenregel und erscheint auch im
+PNG-Export und Druck. Bei mehreren Schichten derselben Person am selben Tag
+wird die tägliche Pause wie im Excel-Export anteilig verteilt.
+
 Beim Ziehen einer Person oder Schichtkopie werden belegte Tage als gesperrt
 angezeigt. Beim Wechsel auf einen freien Tag ist das Ablegen sofort wieder
 möglich; die bisherige Warnung und ausstehende Aufklapp-Timer werden entfernt.

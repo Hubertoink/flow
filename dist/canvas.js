@@ -5,6 +5,8 @@ if(!data || !Array.isArray(data.people) || !Array.isArray(data.shifts)) data={ve
 if(Array.isArray(data.taskTypes))tasks.splice(0,tasks.length,...data.taskTypes);
 if(!tasks.some(t=>t.id==='flex'))tasks.push({id:'flex',name:'Flexible Aufgabe',color:'#b9a5eb'});
 data.settings ||= {weekend:false};
+data.settings.saturday ??= data.settings.weekend===true;
+data.settings.sunday ??= data.settings.weekend===true;
 const themes=['dark','light','catppuccin'];
 const backgrounds=[
   {id:'car',name:'Violette Abendlandschaft',file:'a_car_with_trees_on_it.png'},
@@ -39,7 +41,10 @@ const DAY_START=8, DAY_END=24, DAY_SPAN=DAY_END-DAY_START;
 let zoom=Number(data.settings.zoom)||1;
 const snap=n=>Math.round(n*4)/4, clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const activeOn=(p,date)=>(!p.from || date>=p.from)&&(!p.until || date<=p.until);
-const dates=()=>Array.from({length:data.settings.weekend?7:5},(_,i)=>addDays(week,i));
+function weekDayIndices(settings){
+  return [0,1,2,3,4,...((settings.saturday??settings.weekend)?[5]:[]),...((settings.sunday??settings.weekend)?[6]:[])];
+}
+const dates=()=>weekDayIndices(data.settings).map(i=>addDays(week,i));
 const visiblePeople=()=>data.people.filter(p=>dates().some(d=>activeOn(p,dateKey(d))));
 const duration=s=>s.length;
 const getShift=id=>data.shifts.find(s=>s.id===id);
@@ -61,6 +66,9 @@ function shiftWork(s,shifts=data.shifts,rules=breakRules()){
   const pause=totals.gross?s.length/totals.gross*totals.pause:0;
   return {pause,net:s.length-pause};
 }
+function shiftTime(s,shifts=data.shifts,rules=breakRules()){
+  return `${fmtTime(s.start)}–${fmtTime(s.start+s.length)} (${hours(shiftWork(s,shifts,rules).net)})`;
+}
 function attendanceHours(net,rules=breakRules()){
   const target=Math.round(net*60);
   const candidates=[0,...rules.map(rule=>rule.minutes)].map(pause=>target+pause).sort((a,b)=>a-b);
@@ -68,9 +76,10 @@ function attendanceHours(net,rules=breakRules()){
   return minutes/60;
 }
 const dockDate=()=>focusDate||(todayKey()>=dateKey(week)&&todayKey()<=dateKey(addDays(week,6))?todayKey():dateKey(week));
+const newShiftLength=(person,date)=>weekdayHours(person,date)===0?3:attendanceHours(weekdayHours(person,date));
 function updateDockHours(date=dockDate()){
   const day=weekdays[(parseDate(date).getDay()+6)%7];
-  document.querySelectorAll('.token').forEach(token=>{const person=data.people.find(person=>person.id===token.dataset.person),amount=weekdayHours(person,date);token.querySelector('time').textContent=hours(amount);token.classList.toggle('off-day',amount===0);token.title=`${day}: ${hours(amount)} netto · ${hours(attendanceHours(amount))} Anwesenheit inkl. Pause`;token.setAttribute('aria-label',`${person.name}, ${day}, ${hours(amount)}, einplanen`);});
+  document.querySelectorAll('.token').forEach(token=>{const person=data.people.find(person=>person.id===token.dataset.person),amount=weekdayHours(person,date),length=newShiftLength(person,date);token.querySelector('time').textContent=hours(amount);token.classList.toggle('off-day',amount===0);token.title=amount===0?`${day}: 0 h Soll · neue Schicht mit ${hours(length)} Anwesenheit`:`${day}: ${hours(amount)} netto · ${hours(length)} Anwesenheit inkl. Pause`;token.setAttribute('aria-label',`${person.name}, ${day}, ${hours(amount)}${amount===0?`, neue Schicht ${hours(length)}`:''}, einplanen`);});
 }
 const taskPalette=['#c482b9','#dba8c4','#e6a6ae','#e8b39d','#e6b078','#e6c58b','#dfd498','#c5cf9b','#a9c49a','#8cbea7','#8dbfb9','#91c5ce','#85b9e2','#9aafe0','#aaa4dd','#b9a5eb','#c4b1d9','#bdadb1','#adbcc7','#c5cdd7'];
 const taskColor=t=>/^#[0-9a-f]{6}$/i.test(t.color||'')?t.color:task(t.type).color;
@@ -150,11 +159,11 @@ function displayY(s){const open=getShift(editing);return s.y+(open&&open.id!==s.
 function animateLayout(change){const before=new Map([...document.querySelectorAll('.shift,.segment')].map(el=>[el.dataset.task||el.dataset.shift,el.getBoundingClientRect()]));change();if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;const after=new Map([...document.querySelectorAll('.shift,.segment')].map(el=>[el.dataset.task||el.dataset.shift,el.getBoundingClientRect()]));document.querySelectorAll('.shift,.segment').forEach(el=>{const old=before.get(el.dataset.task||el.dataset.shift);if(!old||!el.animate)return;const now=after.get(el.dataset.task||el.dataset.shift),parent=el.classList.contains('segment')?el.closest('.shift'):null,previousParent=parent&&before.get(parent.dataset.shift),currentParent=parent&&after.get(parent.dataset.shift);const dx=(old.left-now.left-(previousParent?previousParent.left-currentParent.left:0))/zoom,dy=(old.top-now.top-(previousParent?previousParent.top-currentParent.top:0))/zoom;el.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],{duration:260,easing:'cubic-bezier(.22,.68,.18,1)'});});}
 function shiftMarkup(s){
   const p=data.people.find(p=>p.id===s.person);
-  return `<div class="shift ${editing===s.id?'editing':''}" tabindex="0" role="group" data-shift="${s.id}" style="--meta-ink:${s.segments.find(t=>t.offset===0)?taskInk(s.segments.find(t=>t.offset===0)):'#172032'};--person:${p.color};--start:${(s.start-DAY_START)/DAY_SPAN};--duration:${s.length/DAY_SPAN};top:${displayY(s)}px;--task-count:${s.segments.length}" aria-label="${esc(p.name)}, ${fmtTime(s.start)} bis ${fmtTime(s.start+s.length)}, ${hours(s.length)}"><div class="task-track">${s.segments.toSorted((a,b)=>a.offset-b.offset).map((t,i)=>`<button class="segment" data-task="${t.id}" title="${esc(t.label||task(t.type).name)} · ${taskRange(s,t)}" style="--row:${i};--task-ink:${taskInk(t)};--segment:${taskColor(t)};left:${t.offset/s.length*100}%;width:${t.duration/s.length*100}%" aria-label="${esc(t.label||task(t.type).name)}, ${fmtTime(s.start+t.offset)} bis ${fmtTime(s.start+t.offset+t.duration)}"><span class="task-caption"><b>${esc(t.label||task(t.type).name)}</b><time class="task-time">${taskRange(s,t)}</time></span><span class="task-outside" aria-hidden="true"><b>${esc(t.label||task(t.type).name)}</b><time class="task-time">${taskRange(s,t)}</time></span><span class="task-resize task-start" data-edge="task-start" title="Aufgabenbeginn ziehen"></span><span class="task-resize" data-edge="task-end" title="Aufgabenende ziehen"></span></button>`).join('')}</div><span class="shift-meta"><span class="shift-name">${esc(p.name)}</span><time class="shift-time">${fmtTime(s.start)}–${fmtTime(s.start+s.length)}</time></span><button class="shift-edit" title="Bearbeitungsmodus umschalten" aria-pressed="${editing===s.id}" aria-label="${esc(p.name)} bearbeiten">${icon('edit')}</button>${editing===s.id?`<button class="shift-copy" title="Schicht kopieren" aria-label="Schicht von ${esc(p.name)} kopieren">${icon('copy')}</button>`:''}<span class="resize-handle start" data-edge="start" title="Schichtbeginn ändern"></span><span class="resize-handle end" data-edge="end" title="Schichtende ändern"></span></div>`;
+  return `<div class="shift ${editing===s.id?'editing':''}" tabindex="0" role="group" data-shift="${s.id}" style="--meta-ink:${s.segments.find(t=>t.offset===0)?taskInk(s.segments.find(t=>t.offset===0)):'#172032'};--person:${p.color};--start:${(s.start-DAY_START)/DAY_SPAN};--duration:${s.length/DAY_SPAN};top:${displayY(s)}px;--task-count:${s.segments.length}" title="${esc(p.name)}, ${shiftTime(s)} netto" aria-label="${esc(p.name)}, ${shiftTime(s)} netto"><div class="task-track">${s.segments.toSorted((a,b)=>a.offset-b.offset).map((t,i)=>`<button class="segment" data-task="${t.id}" title="${esc(t.label||task(t.type).name)} · ${taskRange(s,t)}" style="--row:${i};--task-ink:${taskInk(t)};--segment:${taskColor(t)};left:${t.offset/s.length*100}%;width:${t.duration/s.length*100}%" aria-label="${esc(t.label||task(t.type).name)}, ${fmtTime(s.start+t.offset)} bis ${fmtTime(s.start+t.offset+t.duration)}"><span class="task-caption"><b>${esc(t.label||task(t.type).name)}</b><time class="task-time">${taskRange(s,t)}</time></span><span class="task-outside" aria-hidden="true"><b>${esc(t.label||task(t.type).name)}</b><time class="task-time">${taskRange(s,t)}</time></span><span class="task-resize task-start" data-edge="task-start" title="Aufgabenbeginn ziehen"></span><span class="task-resize" data-edge="task-end" title="Aufgabenende ziehen"></span></button>`).join('')}</div><span class="shift-meta"><span class="shift-name">${esc(p.name)}</span><time class="shift-time">${shiftTime(s)}</time></span><button class="shift-edit" title="Bearbeitungsmodus umschalten" aria-pressed="${editing===s.id}" aria-label="${esc(p.name)} bearbeiten">${icon('edit')}</button>${editing===s.id?`<button class="shift-copy" title="Schicht kopieren" aria-label="Schicht von ${esc(p.name)} kopieren">${icon('copy')}</button>`:''}<span class="resize-handle start" data-edge="start" title="Schichtbeginn ändern"></span><span class="resize-handle end" data-edge="end" title="Schichtende ändern"></span></div>`;
 }
 function miniShiftMarkup(s){
-  const p=data.people.find(p=>p.id===s.person),range=`${fmtTime(s.start)}–${fmtTime(s.start+s.length)}`;
-  const description=[`${p.name}, ${range}, ${hours(s.length)}`,...s.segments.toSorted((a,b)=>a.offset-b.offset).map(t=>`${t.label||task(t.type).name}: ${taskRange(s,t)}`)].join('\n');
+  const p=data.people.find(p=>p.id===s.person),range=shiftTime(s);
+  const description=[`${p.name}, ${range} netto`,...s.segments.toSorted((a,b)=>a.offset-b.offset).map(t=>`${t.label||task(t.type).name}: ${taskRange(s,t)}`)].join('\n');
   return `<button class="day-mini-shift" data-mini-shift="${s.id}" style="--person:${p.color}" title="${esc(description)}" aria-label="${esc(p.name)}, ${range}, Tag öffnen"><span class="day-mini-track" aria-hidden="true"><span class="day-mini-bar" style="left:${(s.start-DAY_START)/DAY_SPAN*100}%;width:${s.length/DAY_SPAN*100}%">${s.segments.map(t=>`<span style="left:${t.offset/s.length*100}%;width:${t.duration/s.length*100}%;background:${taskColor(t)}"></span>`).join('')}</span></span></button>`;
 }
 function renderTimeline(){
@@ -206,22 +215,21 @@ function yAt(cell,y){let local=(y-cell.getBoundingClientRect().top)/zoom-20;cons
 function freeY(date,wanted,ignore){let y=Math.max(32,wanted);while(data.shifts.some(s=>s.id!==ignore&&s.date===date&&Math.abs(s.y-y)<56))y+=64;return y;}
 function hourAt(cell,x){const r=cell.getBoundingClientRect();return snap(8+(x-r.left)/r.width*DAY_SPAN);}
 function removePreview(cell){cell.classList.remove('drag-over','drop-blocked');cell.querySelector('.drop-preview')?.remove();cell.querySelector('.drop-rejection')?.remove();}
-function dropBlocked(date){if(drag?.kind!=='person'&&drag?.kind!=='copy')return '';const p=data.people.find(p=>p.id===drag.id);if(!p||!activeOn(p,date))return 'An diesem Tag nicht im Team';if(drag.kind==='person'&&weekdayHours(p,date)===0)return 'Freier Tag laut Arbeitszeitmodell';if(drag.kind==='person'&&attendanceHours(weekdayHours(p,date))>DAY_SPAN)return 'Tagesstunden einschließlich Pause passen nicht in 08:00–24:00';return data.shifts.some(s=>s.person===p.id&&s.date===date)?`${p.name} ist bereits eingeplant`:'';}
+function dropBlocked(date){if(drag?.kind!=='person'&&drag?.kind!=='copy')return '';const p=data.people.find(p=>p.id===drag.id);if(!p||!activeOn(p,date))return 'An diesem Tag nicht im Team';if(drag.kind==='person'&&newShiftLength(p,date)>DAY_SPAN)return 'Tagesstunden einschließlich Pause passen nicht in 08:00–24:00';return data.shifts.some(s=>s.person===p.id&&s.date===date)?`${p.name} ist bereits eingeplant`:'';}
 function clearDrop(){drag=null;clearTimeout(expandTimer);hoverDay=null;$('.task-copy-ghost')?.remove();document.querySelectorAll('.task-copy-target').forEach(el=>el.classList.remove('task-copy-target'));document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours();}
 function previewDrop(cell,e){
   document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours(cell.dataset.date);
   if(drag.kind==='task-copy'){const s=getShift(e.target.closest('.shift')?.dataset.shift),placement=taskCopyPlacement(s,s?hourAt(cell,e.clientX)-s.start:0);if(placement.error){e.dataTransfer.dropEffect='none';cell.classList.add('drop-blocked');cell.insertAdjacentHTML('beforeend',`<span class="drop-rejection">${icon('ban')}${esc(placement.error)}</span>`);return;}e.dataTransfer.dropEffect='copy';const {gap}=placement,start=s.start+gap.offset;cell.insertAdjacentHTML('beforeend',`<div class="drop-preview" style="top:${displayY(s)}px;left:${(start-DAY_START)/DAY_SPAN*100}%;width:${gap.duration/DAY_SPAN*100}%"><span>${fmtTime(start)} · ${hours(gap.duration)}</span></div>`);return;}
   const blocked=dropBlocked(cell.dataset.date);if(blocked){e.dataTransfer.dropEffect='none';cell.classList.add('drop-blocked');cell.insertAdjacentHTML('beforeend',`<span class="drop-rejection">${icon('ban')}${esc(blocked)}</span>`);return;}e.dataTransfer.dropEffect='copy';
   let start,length,y;
-  if(drag.kind==='person'){const p=data.people.find(p=>p.id===drag.id);if(!p||!activeOn(p,cell.dataset.date))return;length=attendanceHours(weekdayHours(p,cell.dataset.date));start=clamp(hourAt(cell,e.clientX),8,DAY_END-length);y=freeY(cell.dataset.date,yAt(cell,e.clientY));}
+  if(drag.kind==='person'){const p=data.people.find(p=>p.id===drag.id);if(!p||!activeOn(p,cell.dataset.date))return;length=newShiftLength(p,cell.dataset.date);start=clamp(hourAt(cell,e.clientX),8,DAY_END-length);y=freeY(cell.dataset.date,yAt(cell,e.clientY));}
   else if(drag.kind==='copy'){start=copiedShift.start;length=copiedShift.length;y=freeY(cell.dataset.date,yAt(cell,e.clientY));}else {const s=getShift(e.target.closest('.shift')?.dataset.shift);if(!s)return;start=s.start;length=s.length;y=s.y;}
   cell.insertAdjacentHTML('beforeend',`<div class="drop-preview" style="top:${displayY({date:cell.dataset.date,y,id:drag.kind==='task'?e.target.closest('.shift')?.dataset.shift:null})}px;left:${(start-DAY_START)/DAY_SPAN*100}%;width:${length/DAY_SPAN*100}%"><span>${fmtTime(start)} · ${hours(length)}</span></div>`);
 }
 function createShift(person,date,start=8,y=32){
   const p=data.people.find(p=>p.id===person);if(!p||!activeOn(p,date)){toast('Diese Person ist an diesem Tag nicht im Team.');return;}
   const old=data.shifts.find(s=>s.person===person&&s.date===date);if(old){toast('Diese Person ist an diesem Tag bereits eingeplant.');return;}
-  const target=weekdayHours(p,date);if(target===0){toast('Freier Tag laut Arbeitszeitmodell. Bitte zuerst die Tagesstunden in den Einstellungen anpassen.');return;}
-  const length=attendanceHours(target);if(length>DAY_SPAN){toast('Tagesstunden einschließlich Pause passen nicht in den Zeitraum 08:00–24:00. Bitte Tagesstunden oder Pausenregel anpassen.');return;}
+  const length=newShiftLength(p,date);if(length>DAY_SPAN){toast('Tagesstunden einschließlich Pause passen nicht in den Zeitraum 08:00–24:00. Bitte Tagesstunden oder Pausenregel anpassen.');return;}
   const s={id:uid(),person,date,start:clamp(snap(start),8,DAY_END-length),y:freeY(date,y),length,segments:[]};data.shifts.push(s);picked=null;persist();refresh();
 }
 function findGap(s,wanted,size,ignore){
@@ -283,7 +291,7 @@ document.addEventListener('pointermove',e=>{
   else if(g.edge==='start'){const first=b.segments.reduce((n,t)=>Math.min(n,t.offset+t.duration-.25),b.length-.25);const change=clamp(delta,8-b.start,Math.min(first,b.length-.25));s.start=b.start+change;s.length=b.length-change;s.segments.forEach((t,i)=>{const old=b.segments[i];t.offset=Math.max(0,old.offset-change);t.duration=old.duration-Math.max(0,change-old.offset);});}
   else if(g.edge==='end'){const min=b.segments.reduce((n,t)=>Math.max(n,t.offset+.25),.25);s.length=clamp(b.length+delta,min,DAY_END-b.start);s.segments.forEach((t,i)=>t.duration=Math.min(b.segments[i].duration,s.length-t.offset));}
   else {s.start=clamp(b.start+delta,8,DAY_END-b.length);const cell=document.elementFromPoint(e.clientX,e.clientY)?.closest('.day-cell');const p=data.people.find(p=>p.id===s.person);if(cell&&activeOn(p,cell.dataset.date)&&!data.shifts.some(x=>x!==s&&x.person===s.person&&x.date===cell.dataset.date)){s.date=cell.dataset.date;s.y=yAt(cell,e.clientY);if(cell!==g.el.parentElement){cell.append(g.el);g.x=e.clientX;g.width=cell.getBoundingClientRect().width;b.start=s.start;}}}
-  document.querySelectorAll('.shift').forEach(el=>{const other=getShift(el.dataset.shift);el.style.top=displayY(other)+'px';});g.el.style.setProperty('--start',(s.start-DAY_START)/DAY_SPAN);g.el.style.setProperty('--duration',s.length/DAY_SPAN);g.el.querySelector('.shift-time').textContent=`${fmtTime(s.start)}–${fmtTime(s.start+s.length)}`;
+  document.querySelectorAll('.shift').forEach(el=>{const other=getShift(el.dataset.shift);el.style.top=displayY(other)+'px';el.querySelector('.shift-time').textContent=shiftTime(other);const label=`${data.people.find(p=>p.id===other.person).name}, ${shiftTime(other)} netto`;el.title=label;el.setAttribute('aria-label',label);});g.el.style.setProperty('--start',(s.start-DAY_START)/DAY_SPAN);g.el.style.setProperty('--duration',s.length/DAY_SPAN);
   s.segments.forEach(t=>{const el=g.el.querySelector(`[data-task="${t.id}"]`);el.style.left=t.offset/s.length*100+'%';el.style.width=t.duration/s.length*100+'%';el.querySelectorAll('.task-time').forEach(time=>time.textContent=taskRange(s,t));el.title=(t.label||task(t.type).name)+' · '+taskRange(s,t);el.setAttribute('aria-label',(t.label||task(t.type).name)+', '+taskRange(s,t));});
   s.segments.forEach(t=>{const button=g.el.querySelector(`[data-copy-task="${t.id}"]`);if(button)button.style.left=`calc(${(t.offset+t.duration)/s.length*100}% - 27px)`;});
 updateTaskLabels();
@@ -299,7 +307,7 @@ function openSettings(tab){
   if(settingsTabs.some(([id])=>id===tab))settingsTab=tab;
   const panel=(id,html)=>`<section class="settings-panel" role="tabpanel" id="settings-panel-${id}" aria-labelledby="settings-tab-${id}" tabindex="0" ${id===settingsTab?'':'hidden'}>${html}</section>`;
   openModal(`${modalTop('Einstellungen')}<div class="settings-layout"><nav class="settings-nav" role="tablist" aria-label="Einstellungsbereiche" aria-orientation="vertical">${settingsTabs.map(([id,label,ic])=>`<button type="button" role="tab" id="settings-tab-${id}" data-settings-tab="${id}" aria-controls="settings-panel-${id}" aria-selected="${id===settingsTab}" tabindex="${id===settingsTab?0:-1}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav><div class="settings-panels">${
-    panel('general',`<h3 class="settings-panel-title">Allgemein</h3><label class="settings-row" for="theme"><span>Design</span><select id="theme"><option value="dark">Dunkel</option><option value="light">Hell</option><option value="catppuccin">Catppuccin Mocha</option></select></label><div class="settings-row"><span>Wochenende anzeigen</span><input id="weekend" type="checkbox" ${data.settings.weekend?'checked':''}></div>`)}${
+    panel('general',`<h3 class="settings-panel-title">Allgemein</h3><label class="settings-row" for="theme"><span>Design</span><select id="theme"><option value="dark">Dunkel</option><option value="light">Hell</option><option value="catppuccin">Catppuccin Mocha</option></select></label><label class="settings-row" for="saturday"><span>Samstag anzeigen</span><input id="saturday" type="checkbox" ${data.settings.saturday?'checked':''}></label><label class="settings-row" for="sunday"><span>Sonntag anzeigen</span><input id="sunday" type="checkbox" ${data.settings.sunday?'checked':''}></label>`)}${
     panel('breaks','')}${
     panel('people',`<div class="settings-heading"><h3>Mitarbeitende</h3><button id="new-person" class="subtle-button">${icon('plus')} Hinzufügen</button></div><div class="people-settings">${data.people.map(person=>`<button class="person-setting" data-edit-person="${person.id}"><i style="background:${person.color}"></i><span><strong>${esc(person.name)}</strong><small>${person.from?parseDate(person.from).toLocaleDateString('de-DE'):'Ohne Eintrittsdatum'}${person.until?' – '+parseDate(person.until).toLocaleDateString('de-DE'):' · unbefristet'}</small></span><b class="person-weekly-hours">${hours(person.weeklyHours??weekHours(person))}<small>pro Woche</small></b>${icon('edit')}</button>`).join('')}</div><p class="modal-note">Ein- und Austrittsdatum steuern die Sichtbarkeit im Plan. Frühere Schichten bleiben erhalten.</p>`)}${
     panel('presets',`<div class="settings-heading"><h3>Aufgabenvorlagen</h3><button id="new-preset" class="subtle-button">${icon('plus')} Hinzufügen</button></div>${tasks.filter(t=>t.id!=='flex'&&!t.hidden).map(t=>`<button class="person-setting" data-preset="${t.id}"><i style="background:${t.color}"></i><span>${esc(t.name)}</span>${icon('edit')}</button>`).join('')}`)}${
@@ -333,7 +341,7 @@ function openSettings(tab){
     data.settings.background=input.value;applyBackground();persist();
   });
   $('#theme').onchange=e=>{data.settings.theme=e.target.value;applyTheme();persist();};
-  $('#weekend').onchange=e=>{data.settings.weekend=e.target.checked;persist();refresh();};$('#new-person').onclick=()=>openPerson();document.querySelectorAll('[data-edit-person]').forEach(el=>el.onclick=()=>openPerson(data.people.find(p=>p.id===el.dataset.editPerson)));
+  ['saturday','sunday'].forEach(day=>$('#'+day).onchange=e=>{data.settings[day]=e.target.checked;data.settings.weekend=data.settings.saturday&&data.settings.sunday;if(focusDate&&!dates().some(date=>dateKey(date)===focusDate))focusDate=null;clearDrop();persist();refresh();});$('#new-person').onclick=()=>openPerson();document.querySelectorAll('[data-edit-person]').forEach(el=>el.onclick=()=>openPerson(data.people.find(p=>p.id===el.dataset.editPerson)));
   $('#new-preset').onclick=()=>openPreset();document.querySelectorAll('[data-preset]').forEach(el=>el.onclick=()=>openPreset(task(el.dataset.preset)));
   renderUpdatePanel();
 }
