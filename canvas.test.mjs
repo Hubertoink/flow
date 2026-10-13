@@ -233,4 +233,43 @@ run('drag=null;createShift(data.people[0].id,dateKey(addDays(week,1)));');
 assert.match(bq('#toast').textContent,/passen nicht/);assert.equal(run('data.shifts.length'),1);
 bw.close();
 }
-console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/persistence, settings tabs, updates, weekly schedules, copies, folded-day miniatures, break rules/net totals, migration and reload.');w.close();
+{
+const cd=boot(),cw=cd.window,cq=s=>cw.document.querySelector(s),run=code=>cw.runCanvasCode(code),stored=()=>cw.localStorage.getItem('flow-plan-v1');
+run(`week=parseDate('2028-02-28');data.shifts=[
+{id:'calendar-one',person:'niko',date:'2028-02-29',start:8,length:4,y:32,segments:[]},
+{id:'calendar-weekend',person:'kayla',date:'2028-03-04',start:8,length:4,y:32,segments:[]},
+{id:'calendar-year',person:'niko',date:'2029-01-01',start:8,length:4,y:32,segments:[]}
+];refresh();persist();`);
+const before=stored();
+cq('#date-range').click();assert.equal(cq('#month-picker').hidden,false);
+assert.equal(cq('#date-range').getAttribute('aria-expanded'),'true');
+assert.match(cq('.month-picker-heading strong').textContent,/Februar 2028/);
+assert.ok(cq('.month-picker-heading .calendar-dot'));
+assert.equal(cw.document.querySelectorAll('[data-calendar-date]').length,42);
+assert.ok(cq('[data-calendar-date="2028-02-29"] .calendar-dot'));
+assert.ok(cq('[data-calendar-date="2028-03-04"] .calendar-dot'));
+assert.equal(cq('[data-calendar-date="2028-02-28"] .calendar-dot'),null);
+assert.equal(cw.document.querySelectorAll('.selected-week').length,7);
+assert.equal(cw.document.activeElement.dataset.calendarDate,'2028-02-28');
+cq('[data-calendar-date="2028-02-29"]').focus();
+cq('[data-calendar-date="2028-02-29"]').dispatchEvent(new cw.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+assert.match(cq('.month-picker-heading strong').textContent,/März 2028/);
+assert.equal(cw.document.activeElement.dataset.calendarDate,'2028-03-01');
+cq('[data-calendar-date="2028-03-04"]').click();
+assert.equal(run('dateKey(week)'),'2028-02-28');assert.equal(cq('#month-picker').hidden,true);
+assert.equal(cw.document.activeElement.id,'date-range');assert.equal(stored(),before);
+cq('#date-range').click();cq('[data-month-step="-1"]').click();
+assert.match(cq('.month-picker-heading strong').textContent,/Januar 2028/);assert.equal(cq('.month-picker-heading .calendar-dot'),null);
+cq('[data-month-step="-1"]').click();assert.match(cq('.month-picker-heading strong').textContent,/Dezember 2027/);
+cq('[data-month-step="1"]').click();assert.match(cq('.month-picker-heading strong').textContent,/Januar 2028/);
+cq('[data-month-step="1"]').dispatchEvent(new cw.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+assert.equal(cq('#month-picker').hidden,true);assert.equal(cw.document.activeElement.id,'date-range');
+cq('#date-range').click();cq('#next').click();assert.equal(cq('#month-picker').hidden,true);
+cq('#date-range').click();cq('#today').focus();assert.equal(cq('#month-picker').hidden,true);
+run(`week=parseDate('2028-12-25');refresh();`);
+cq('#date-range').click();cq('[data-month-step="1"]').click();assert.match(cq('.month-picker-heading strong').textContent,/Januar 2029/);
+assert.ok(cq('.month-picker-heading .calendar-dot'));
+cq('[data-calendar-date="2029-01-01"]').click();assert.equal(run('dateKey(week)'),'2029-01-01');
+assert.equal(stored(),before);cw.close();
+}
+console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/persistence, settings tabs, updates, weekly schedules, copies, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();

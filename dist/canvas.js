@@ -360,6 +360,57 @@ function openPerson(person){
 function download(content,type,name){const url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function exportCSV(){const rows=[['Name','Datum','Beginn','Ende','Aufgabe','Anwesenheit / Aufgabe (h)','Pausenanteil (h)','Ist netto (h)']];data.shifts.filter(s=>s.date>=dateKey(week)&&s.date<=dateKey(addDays(week,6))).forEach(s=>{const name=data.people.find(p=>p.id===s.person).name,work=shiftWork(s);rows.push([name,s.date,fmtTime(s.start),fmtTime(s.start+s.length),'Schicht',s.length,work.pause,work.net]);s.segments.toSorted((a,b)=>a.offset-b.offset).forEach(t=>rows.push([name,s.date,fmtTime(s.start+t.offset),fmtTime(s.start+t.offset+t.duration),t.label||task(t.type).name,t.duration,'','']));});download('\ufeff'+rows.map(r=>r.map(v=>'"'+String(v).replace(/^[=+\-@]/,"'$&").replaceAll('"','""')+'"').join(';')).join('\r\n'),'text/csv;charset=utf-8',`Flow-${dateKey(week)}.csv`);}
 function changeWeek(n){week=addDays(week,n);focusDate=null;picked=null;closePanel();refresh();}
+let pickerMonth;
+function closeMonthPicker(restoreFocus=false){
+  $('#month-picker').hidden=true;$('#date-range').setAttribute('aria-expanded','false');
+  if(restoreFocus)$('#date-range').focus();
+}
+function positionMonthPicker(){
+  const picker=$('#month-picker');if(picker.hidden)return;
+  const rect=$('#date-range').getBoundingClientRect(),width=picker.offsetWidth,height=picker.offsetHeight;
+  picker.style.left=Math.max(8,Math.min(rect.left+rect.width/2-width/2,window.innerWidth-width-8))+'px';
+  picker.style.top=Math.max(8,Math.min(rect.bottom+10,window.innerHeight-height-8))+'px';
+}
+function renderMonthPicker(focusDateKey){
+  const picker=$('#month-picker'),first=new Date(pickerMonth.getFullYear(),pickerMonth.getMonth(),1,12),start=monday(first);
+  const scheduled=new Set(data.shifts.map(s=>s.date)),months=new Set(data.shifts.map(s=>s.date.slice(0,7)));
+  const monthLabel=first.toLocaleDateString('de-DE',{month:'long',year:'numeric'}),hasShifts=months.has(dateKey(first).slice(0,7));
+  picker.innerHTML=`<div class="month-picker-heading"><button type="button" class="icon-button" data-month-step="-1" aria-label="Vorheriger Monat">${icon('chevron-left')}</button><strong aria-live="polite">${monthLabel}${hasShifts?'<i class="calendar-dot" aria-label="Schichten in diesem Monat"></i>':''}</strong><button type="button" class="icon-button" data-month-step="1" aria-label="Nächster Monat">${icon('chevron-right')}</button></div><div class="month-picker-weekdays" aria-hidden="true">${weekdays.map(day=>`<span>${day.slice(0,2)}</span>`).join('')}</div><div class="month-picker-days">${Array.from({length:42},(_,i)=>{
+    const d=addDays(start,i),key=dateKey(d),scheduledDay=scheduled.has(key),inWeek=key>=dateKey(week)&&key<=dateKey(addDays(week,6)),today=key===todayKey();
+    return `<button type="button" data-calendar-date="${key}" class="${d.getMonth()!==first.getMonth()?'outside-month ':''}${inWeek?'selected-week ':''}${today?'calendar-today':''}" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}${scheduledDay?', Schichten vorhanden':''}${inWeek?', angezeigte Woche':''}" ${today?'aria-current="date"':''}><span>${d.getDate()}</span>${scheduledDay?'<i class="calendar-dot" aria-hidden="true"></i>':''}</button>`;
+  }).join('')}</div><p class="month-picker-note"><i class="calendar-dot" aria-hidden="true"></i> Schichten vorhanden · Tag öffnet die Woche</p>`;
+  picker.querySelectorAll('[data-month-step]').forEach(button=>button.onclick=()=>{
+    const step=Number(button.dataset.monthStep);
+    pickerMonth=new Date(first.getFullYear(),first.getMonth()+step,1,12);renderMonthPicker();
+    picker.querySelector(`[data-month-step="${step}"]`).focus();
+  });
+  picker.querySelectorAll('[data-calendar-date]').forEach(button=>{
+    button.onclick=()=>{week=monday(parseDate(button.dataset.calendarDate));changeWeek(0);closeMonthPicker(true);};
+    button.onkeydown=e=>{
+      const date=parseDate(button.dataset.calendarDate),day=(date.getDay()+6)%7;
+      const delta={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7,Home:-day,End:6-day}[e.key];
+      if(delta===undefined)return;e.preventDefault();
+      const next=addDays(date,delta),key=dateKey(next);
+      if(next.getMonth()!==first.getMonth()||next.getFullYear()!==first.getFullYear()){
+        pickerMonth=new Date(next.getFullYear(),next.getMonth(),1,12);renderMonthPicker(key);
+      }else picker.querySelector(`[data-calendar-date="${key}"]`)?.focus();
+    };
+  });
+  if(focusDateKey)picker.querySelector(`[data-calendar-date="${focusDateKey}"]`)?.focus();
+  positionMonthPicker();
+}
+$('#date-range').onclick=()=>{
+  if(!$('#month-picker').hidden){closeMonthPicker();return;}
+  closeMenu();closePanel();closeWeekInfo();
+  pickerMonth=new Date(week.getFullYear(),week.getMonth(),1,12);
+  $('#month-picker').hidden=false;$('#date-range').setAttribute('aria-expanded','true');
+  renderMonthPicker(dateKey(week));
+};
+$('#month-picker').onclick=e=>e.stopPropagation();
+document.addEventListener('click',e=>{if(!e.target.closest('#month-picker,#date-range'))closeMonthPicker();});
+document.addEventListener('focusin',e=>{if(!e.target.closest('#month-picker,#date-range'))closeMonthPicker();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#month-picker').hidden){e.preventDefault();e.stopImmediatePropagation();closeMonthPicker(true);}},true);
+window.addEventListener('resize',positionMonthPicker);
 function closeMenu(){$('#menu').hidden=true;$('#more').setAttribute('aria-expanded','false');}
 $('#prev').onclick=()=>changeWeek(-7);$('#next').onclick=()=>changeWeek(7);$('#today').onclick=()=>{week=monday(parseDate(todayKey()));changeWeek(0);};
 $('#dock-toggle').onclick=()=>{const collapsed=$('.dock').classList.toggle('collapsed');$('#dock-toggle').setAttribute('aria-expanded',String(!collapsed));};
@@ -368,7 +419,7 @@ $('.footer-label').textContent='AUFGABEN';
 $('#detail').setAttribute('aria-label','Schicht-Toolkit');
 function renderLegend(){$('#legend').innerHTML=tasks.filter(t=>!t.hidden).map(t=>`<button draggable="true" class="legend-item" data-type="${t.id}"><i class="legend-dot" style="--segment:${t.color}"></i>${esc(t.name)}</button>`).join('');document.querySelectorAll('[data-type]').forEach(el=>{el.ondragstart=e=>{drag={kind:'task',id:el.dataset.type};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';};el.ondragend=clearDrop;el.onclick=()=>{const s=getShift(selected||editing);if(s)addTask(s,el.dataset.type,0);else toast('Aufgabe in eine Schicht ziehen oder zuerst eine Schicht auswählen.');};});}
 $('#more').onclick=()=>{const hidden=!$('#menu').hidden;$('#menu').hidden=hidden;$('#more').setAttribute('aria-expanded',String(!hidden));};
-$('#menu').querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{closeMenu();({excel:()=>openExport('excel'),image:()=>openExport('image'),export:exportCSV,backup:()=>download(JSON.stringify(data,null,2),'application/json',`Flow-${todayKey()}.json`),print:()=>window.print(),settings:()=>openSettings()})[b.dataset.action]();});
+$('#menu').querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{closeMenu();({excel:()=>openExport('excel'),image:()=>openExport('image'),export:exportCSV,backup:()=>exportPlan(),import:()=>openPlanImport(),print:()=>window.print(),settings:()=>openSettings()})[b.dataset.action]();});
 document.addEventListener('click',e=>{if(!e.target.closest('.menu-wrap'))closeMenu();if(!e.target.closest('#week-info,#week-info-toggle'))closeWeekInfo();if(!e.target.closest('#detail,.shift,.legend-item'))closePanel();});
 document.addEventListener('keydown',event=>{if($('#modal').open){if(event.key==='Escape'){event.preventDefault();$('#modal-close').click();}return;}if(event.key==='Escape'){endGesture(true);editing=null;copyPicked=false;closeWeekInfo();picked=null;clearDrop();closePanel();closeMenu();refresh();}});
 const surface=document.createElement('div');surface.className='canvas-surface';$('#grid-scroll').append(surface);surface.append($('#timeline'));

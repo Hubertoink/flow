@@ -3,6 +3,7 @@ function hydrate(root=document){root.querySelectorAll('[data-icon]').forEach(e=>
 const $=s=>document.querySelector(s), esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tasks=[{id:'prep',name:'Vorbereitung',short:'Vorbereitung',color:'#c482b9'},{id:'admin',name:'Admin',short:'Admin',color:'#dba8c4'},{id:'open',name:'Offener Bereich',short:'Offener Bereich',color:'#c5cdd7'},{id:'project',name:'Projekte',short:'Medienwerkstatt',color:'#85b9e2'},{id:'homework',name:'Hausaufgabenhilfe',short:'Hausaufgabenhilfe',color:'#e6b078'},{id:'holiday',name:'Ferienprogramm',short:'Ferienprogramm',color:'#ad95df'},{id:'planning',name:'Planung',short:'Planung',color:'#8cbea7'}];
 const task=id=>tasks.find(t=>t.id===id)||tasks[2];
+const defaultTaskTypes=structuredClone(tasks);
 const initialPeople=[{id:'kayla',name:'Kayla',start:8,end:16,color:'#c482b9'},{id:'niko',name:'Niko',start:10,end:18,color:'#85b9e2'},{id:'lea',name:'Lea',start:13,end:20,color:'#8cbea7'},{id:'sam',name:'Sam',start:9,end:15,color:'#e6b078'}];
 const todayKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const parseDate=s=>new Date(s+'T12:00:00');

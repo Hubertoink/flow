@@ -198,6 +198,29 @@ für Rezept-Update und Prüfung. Store-Review und mögliche Fehlerbehebung komme
 
 ## Exporte
 
+### Plan zwischen Rechnern übertragen
+
+Über **Weitere Optionen → Kompletten Plan exportieren** wird eine JSON-Datei
+mit allen Wochen, Mitarbeitenden, Aufgabenvorlagen und Einstellungen erstellt.
+Diese Datei kannst du beispielsweise per E-Mail oder USB-Stick übertragen.
+Auf dem anderen Rechner **Weitere Optionen → Plan importieren** öffnen und
+die Datei auswählen. Die Vorschau zeigt Personen, Schichten, Wochen und
+Zeitraum. Erst nach ausdrücklicher Bestätigung wird der gesamte Zielplan
+ersetzt; es erfolgt keine Zusammenführung. Die exportierte Woche wird geöffnet.
+
+Vor jedem Import wird der vorherige Plan automatisch lokal gesichert.
+Unter **Plan importieren → Plan vor dem letzten Import wiederherstellen**
+kann diese Sicherung auch nach einem Neustart zurückgespielt werden.
+Die Sicherung umfasst nur den Stand vor dem letzten Import; vor wichtigen
+Änderungen zusätzlich **Aktuellen Plan exportieren** verwenden.
+Schlägt das Speichern fehl, bleibt der bisherige Plan aktiv.
+
+Dateien werden ausschließlich lokal verarbeitet. Auch bisherige
+**Plan als JSON speichern**-Exporte (Planversionen 1–3) werden unterstützt.
+Ungültige, neuere oder über 10 MB große Dateien werden mit Fehlermeldung
+abgelehnt. Die JSON-Datei ist nicht verschlüsselt und enthält Namen und
+Einsatzzeiten; nur über geeignete, vertrauenswürdige Wege weitergeben.
+
 Unter **Weitere Optionen**:
 
 - **Als Excel exportieren** erzeugt eine echte `.xlsx`-Datei. Das Blatt
@@ -284,3 +307,9 @@ Update nicht. Das erste Release kann mit
 `git tag v1.0.0` und `git push origin v1.0.0` angelegt werden.
 Signing-Zertifikate und Tokens gehören ausschließlich in GitHub-Secrets,
 niemals ins Repository.
+Ein Klick auf den Datumsbereich oben öffnet einen Monatskalender.
+Mit den Pfeilen lässt sich durch Monate blättern; ein Tagesklick öffnet die
+zugehörige Woche. Punkte am Monatsnamen und an Tagen markieren vorhandene
+Schichten, auch außerhalb der aktuell angezeigten Woche und an Wochenenden.
+Die aktuelle Woche ist hinterlegt, der heutige Tag umrandet. Pfeiltasten
+sowie Pos1/Ende navigieren durch Tage; Escape schließt den Kalender.

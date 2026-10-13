@@ -20,6 +20,22 @@
   --shadow:#11111b80;--shift-surface:#313244;--on-accent:#f5eaff;
 }
 body{background:var(--base);color:var(--text)}
+#date-range{padding:4px 6px;border-radius:6px;white-space:nowrap}
+#date-range:hover,#date-range[aria-expanded="true"]{background:var(--hover)}
+.month-picker{position:fixed;z-index:100;width:min(310px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);box-shadow:0 12px 40px var(--shadow)}
+.month-picker-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:12px}
+.month-picker-heading strong{display:flex;align-items:center;gap:8px;font-size:14px}
+.month-picker-weekdays,.month-picker-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.month-picker-weekdays span{text-align:center;color:var(--muted);font-size:11px;padding:5px 0}
+.month-picker-days button{position:relative;min-width:0;height:36px;padding:0 0 6px;border-radius:7px;font-size:12px}
+.month-picker-days button:hover{background:var(--hover)}
+.month-picker-days .outside-month{color:var(--muted)}
+.month-picker-days .selected-week{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.month-picker-days .calendar-today{box-shadow:inset 0 0 0 1px var(--accent);font-weight:700}
+.calendar-dot{display:inline-block;width:5px;height:5px;flex:none;border-radius:50%;background:var(--accent)}
+.month-picker-days .calendar-dot{position:absolute;bottom:4px;left:calc(50% - 2.5px)}
+.month-picker-note{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted);margin:12px 0 0}
+@media print{.month-picker{display:none!important}}
 .wordmark,.dock-toggle strong,.token,.day-name,.detail-panel,dialog,.week-info{color:var(--text)}
 .brand-dot,.day-head.current .day-name,.expanded .day-name{color:var(--accent)}
 .board{background:var(--board);border-color:var(--border)}

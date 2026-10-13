@@ -79,13 +79,22 @@ const {app}=require('electron');
           if(document.querySelector('.canvas-export'))throw new Error('Export DOM not cleaned up');
         }finally{download=originalDownload;htmlToImage.toBlob=originalToBlob;}
       }
+      const transfer=planTransfer();transfer.plan.people[0].name='Import-Test';
+      transfer.plan.settings.breakRules=[{after:6,minutes:30}];
+      storeImportedPlan(readPlanTransfer(JSON.stringify(transfer)));
+      if(data.people[0].name!=='Import-Test'||!localStorage.getItem(PLAN_RECOVERY_KEY))throw new Error('Plan transfer failed');
       localStorage.setItem('flow-smoke-persistence','ok');
       return {origin:location.origin,excelBytes:bytes.length,logo:document.querySelector('.brand-logo').naturalWidth};
     })()`);
     window.reload();await new Promise(resolve=>window.webContents.once('did-finish-load',resolve));
     const persisted=await window.webContents.executeJavaScript(`localStorage.getItem('flow-smoke-persistence')`);
     if(persisted!=='ok')throw new Error('Local storage did not survive reload');
-    console.log('PASS: desktop launch, isolated renderer, local assets, XLSX, PNG and persistence.',JSON.stringify(result));
+    await window.webContents.executeJavaScript(`(()=>{
+      if(data.people[0].name!=='Import-Test'||data.settings.breakRules[0].minutes!==30)throw new Error('Imported plan did not survive reload');
+      const previous=readPlanTransfer(localStorage.getItem(PLAN_RECOVERY_KEY));storeImportedPlan(previous,false);
+      if(data.people[0].name==='Import-Test')throw new Error('Import recovery failed');
+    })()`);
+    console.log('PASS: desktop launch, isolated renderer, local assets, XLSX, PNG, plan transfer/recovery and persistence.',JSON.stringify(result));
     window.destroy();app.exit(0);
   }catch(error){console.error(error);app.exit(1);}
 })();
