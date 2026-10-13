@@ -3,5 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "scripts": { "dev": "node preview.mjs", "check": "node --check dist/app.js" }
+  "scripts": { "dev": "node preview.mjs", "check": "node --check dist/app.js && node --check dist/canvas.js", "test": "node canvas.test.mjs" },
+  "devDependencies": { "jsdom": "29.1.1" }
 }
