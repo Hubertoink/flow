@@ -3,6 +3,14 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "scripts": { "dev": "node preview.mjs", "check": "node --check dist/app.js && node --check dist/canvas.js", "test": "node canvas.test.mjs" },
-  "devDependencies": { "jsdom": "29.1.1" }
+  "scripts": {
+    "dev": "node preview.mjs",
+    "check": "node --check dist/icons.js && node --check dist/app.js && node --check dist/canvas.js",
+    "test": "node canvas.test.mjs",
+    "icons": "node generate-icons.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "29.1.1",
+    "lucide-static": "1.56.0"
+  }
 }
