@@ -1,0 +1,10 @@
+kind = "app"
+name = "Flow!"
+summary = "Lokale Wochen- und Einsatzplanung mit kopierbaren Teilschichten, Ist-/Sollstunden und Excel-/Bildexport."
+categories = ["Office", "Calendar"]
+icon = "assets/Flow!_Logo.png"
+terminal = false
+
+[linux.x86_64]
+asset = "Flow-{version}-x86_64-linux.tar.gz"
+exec = "flow-jugendplan"

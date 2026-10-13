@@ -5,16 +5,16 @@
   <meta name="theme-color" content="#10151f">
   <meta name="description" content="Flow! — Menschenzentrierte Einsatzplanung für kleine Teams. Wer übernimmt wann welche Verantwortung?">
   <title>Flow! — JugendPlan</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%2310151f'/%3E%3Cpath d='M20 17h28v8H29v8h15v8H29v13h-9z' fill='%23b7a3ef'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/x-icon" href="assets/Flow__Logo.ico">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="canvas.css">
 </head>
 <body>
   <div id="app">
     <header class="topbar">
-      <div class="brand"><span class="brand-symbol" aria-hidden="true">f<span>!</span></span><div><a class="wordmark" href="./">JugendPlan<span class="brand-dot">.</span></a></div></div>
+      <div class="brand"><img class="brand-logo" src="assets/Flow!_Logo.png" alt="Flow!" width="44" height="44"><div><a class="wordmark" href="./">JugendPlan<span class="brand-dot">.</span></a></div></div>
       <nav class="week-nav" aria-label="Wochennavigation"><button class="icon-button" id="prev" aria-label="Vorherige Woche" data-icon="chevron-left"></button><div class="date-wrap"><span id="date-range"></span><span class="week-number" id="week-number"></span></div><button class="icon-button" id="next" aria-label="Nächste Woche" data-icon="chevron-right"></button></nav>
-      <div class="header-actions"><button class="today-button" id="today">Heute</button><div class="menu-wrap"><button class="icon-button" id="more" aria-label="Weitere Optionen" aria-expanded="false" data-icon="more"></button><div id="menu" class="dropdown" hidden><div class="menu-label">WOCHENPLAN</div><button data-action="export" data-icon="download">Als CSV exportieren</button><button data-action="backup" data-icon="save">Plan als JSON speichern</button><button data-action="print" data-icon="print">Drucken <kbd>⌘ P</kbd></button><div class="menu-divider"></div><button data-action="settings" data-icon="settings">Einstellungen</button></div></div></div>
+      <div class="header-actions"><button class="today-button" id="today">Heute</button><div class="menu-wrap"><button class="icon-button" id="more" aria-label="Weitere Optionen" aria-expanded="false" data-icon="more"></button><div id="menu" class="dropdown" hidden><div class="menu-label">WOCHENPLAN</div><button data-action="excel" data-icon="download">Als Excel exportieren</button><button data-action="image" data-icon="download">Canvas als Bild exportieren</button><button data-action="export" data-icon="download">Als CSV exportieren</button><button data-action="backup" data-icon="save">Plan als JSON speichern</button><button data-action="print" data-icon="print">Drucken <kbd>⌘ P</kbd></button><div class="menu-divider"></div><button data-action="settings" data-icon="settings">Einstellungen</button></div></div></div>
     </header>
     <section class="dock" aria-label="Mitarbeitenden-Dock"><button id="dock-toggle" class="dock-toggle" aria-expanded="true"><span data-icon="chevron-down"></span><span><strong id="staff-count">4</strong> Mitarbeitende im Einsatz</span></button><div class="tokens" id="tokens"></div><button id="add-person" class="add-person" aria-label="Mitarbeitende hinzufügen" title="Mitarbeitende hinzufügen" data-icon="plus"></button></section>
     <main class="workspace"><section class="board" aria-label="Personenorientierte Wochenplanung"><div class="grid-scroll" id="grid-scroll"><div class="timeline" id="timeline"></div></div></section><aside id="detail" class="detail-panel" aria-label="Schichtdetails" hidden></aside></main>
@@ -25,6 +25,8 @@
   <script src="icons.js"></script>
   <script src="app.js"></script>
   <script src="canvas.js"></script>
+  <script src="vendor/exceljs.min.js" defer></script>
+  <script src="vendor/html-to-image.js" defer></script>
+  <script src="exports.js" defer></script>
 </body>
 </html>
-

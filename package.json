@@ -2,15 +2,72 @@
   "name": "flow-jugendplan",
   "private": true,
   "version": "1.0.0",
+  "description": "Flow! - Lokale Wochen- und Einsatzplanung",
+  "author": "Hubertoink",
+  "homepage": "https://github.com/Hubertoink/flow",
+  "license": "UNLICENSED",
+  "main": "desktop/main.cjs",
   "type": "module",
   "scripts": {
     "dev": "node preview.mjs",
-    "check": "node --check dist/icons.js && node --check dist/app.js && node --check dist/canvas.js",
-    "test": "node canvas.test.mjs",
+    "check": "node --check dist/icons.js && node --check dist/app.js && node --check dist/canvas.js && node --check dist/exports.js && node --check desktop/main.cjs",
+    "test": "node canvas.test.mjs && node exports.test.mjs",
+    "vendor": "node vendor-exports.mjs",
+    "desktop": "electron .",
+    "test:desktop": "node desktop.test.mjs",
+    "dist:win": "npm run vendor && npm run check && npm test && electron-builder --win nsis --x64 --publish never",
+    "dist:linux": "npm run vendor && npm run check && npm test && electron-builder --linux AppImage --x64 --publish never && node package-linux.mjs",
     "icons": "node generate-icons.mjs"
   },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    },
+    "app-builder-lib": {
+      "@electron/get": "5.1.0"
+    }
+  },
   "devDependencies": {
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
+    "exceljs": "4.4.0",
+    "html-to-image": "1.11.13",
     "jsdom": "29.1.1",
     "lucide-static": "1.56.0"
+  },
+  "build": {
+    "appId": "com.hubertoink.flow",
+    "productName": "Flow!",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/main.cjs",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/Flow__Logo.ico",
+      "artifactName": "Flow-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "assets/Flow__Logo.ico",
+      "uninstallerIcon": "assets/Flow__Logo.ico"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "executableName": "flow-jugendplan",
+      "icon": "assets/Flow!_Logo.png",
+      "category": "Office",
+      "artifactName": "Flow-${version}-x86_64-linux.${ext}"
+    }
   }
 }

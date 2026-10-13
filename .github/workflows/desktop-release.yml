@@ -1,0 +1,84 @@
+name: Desktop distribution
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run vendor
+      - run: npm run check
+      - run: npm test
+      - run: npm run test:desktop
+      - run: npx electron-builder --win nsis --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Flow-Windows
+          path: release/*.exe
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run vendor
+      - run: npm run check
+      - run: npm test
+      - run: xvfb-run --auto-servernum npm run test:desktop
+      - run: npx electron-builder --linux AppImage --x64 --publish never
+      - run: node package-linux.mjs
+      - name: Check portable Linux package
+        run: |
+          tar -tzf release/Flow-*-x86_64-linux.tar.gz | grep -Fx './flow-jugendplan'
+          tar -tzf release/Flow-*-x86_64-linux.tar.gz | grep -Fx './resources/app.asar'
+          test -x release/linux-unpacked/flow-jugendplan
+          cd release
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Flow-Linux
+          path: |
+            release/*.AppImage
+            release/*-x86_64-linux.tar.gz
+            release/SHA256SUMS
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Flow-*
+          merge-multiple: true
+          path: release
+      - name: Publish desktop installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" release/* --title "Flow! $TAG" --generate-notes --verify-tag
