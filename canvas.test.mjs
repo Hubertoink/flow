@@ -12,6 +12,52 @@ place('niko',100,180);place('kayla',200,70);assert.equal(all('.shift').length,2)
 const kayla=()=>q(`[data-shift="${saved().shifts[1].id}"]`);
 kayla().querySelector('.shift-edit').click();assert.equal(q('#detail').hidden,true);assert.equal(kayla().querySelector('.shift-edit').getAttribute('aria-pressed'),'true');kayla().querySelector('.shift-edit').click();assert.equal(kayla().classList.contains('editing'),false);
 const transfer={setData(){},effectAllowed:'',dropEffect:''};q('[data-person="kayla"]').ondragstart({dataTransfer:transfer});q('.day-cell').ondragover({preventDefault(){},dataTransfer:transfer,target:q('.day-cell'),clientX:100,clientY:100});assert.equal(transfer.dropEffect,'none');assert.match(q('.drop-rejection').textContent,/bereits eingeplant/);assert.equal(q('.drop-preview'),null);q('[data-person="kayla"]').ondragend();
+// Entering a free day must immediately restore dropping after a rejected day.
+{
+  const rd=boot(saved()),rw=rd.window,rq=s=>rw.document.querySelector(s);
+  const cells=[...rw.document.querySelectorAll('.day-cell')];
+  cells.forEach(cell=>cell.getBoundingClientRect=()=>({left:0,top:0,width:1200}));
+  const dt={setData(){},effectAllowed:'',dropEffect:''};
+  const event=target=>({preventDefault(){},dataTransfer:dt,target,clientX:100,clientY:100});
+  rq('[data-person="kayla"]').ondragstart(event(rq('[data-person="kayla"]')));
+  cells[0].ondragenter(event(cells[0]));
+  assert.equal(dt.dropEffect,'none');
+  assert.match(rq('.drop-rejection').textContent,/bereits eingeplant/);
+  cells[2].ondragenter(event(cells[2]));
+  assert.equal(dt.dropEffect,'copy');
+  assert.equal(rq('.drop-rejection'),null);
+  assert.ok(cells[2].querySelector('.drop-preview'));
+  cells[2].ondrop(event(cells[2]));
+  const state=JSON.parse(rw.localStorage.getItem('flow-plan-v1'));
+  assert.equal(state.shifts.filter(s=>s.person==='kayla'&&s.date===cells[2].dataset.date).length,1);
+  assert.equal(state.shifts.filter(s=>s.person==='kayla'&&s.date===cells[0].dataset.date).length,1);
+  rw.runCanvasCode(`copyShift('${state.shifts.find(s=>s.person==='kayla').id}')`);
+  rq('#copy-badge').ondragstart(event(rq('#copy-badge')));
+  const currentCells=[...rw.document.querySelectorAll('.day-cell')];
+  currentCells[0].ondragenter(event(currentCells[0]));
+  assert.equal(dt.dropEffect,'none');
+  const freeHead=rw.document.querySelectorAll('.day-head')[3];
+  freeHead.ondragenter(event(freeHead));
+  assert.equal(dt.dropEffect,'copy');
+  assert.equal(rq('.drop-rejection'),null);
+  freeHead.ondrop(event(freeHead));
+  assert.equal(JSON.parse(rw.localStorage.getItem('flow-plan-v1')).shifts.filter(s=>s.person==='kayla').length,3);
+  // Leaving a header cancels its delayed expansion, even over a blocked day.
+  rw.runCanvasCode('expandDay(null)');
+  rq('[data-person="kayla"]').ondragstart(event(rq('[data-person="kayla"]')));
+  const newHeads=[...rw.document.querySelectorAll('.day-head')];
+  newHeads[1].ondragenter(event(newHeads[1]));
+  newHeads[1].parentElement.ondragleave({relatedTarget:newHeads[0]});
+  newHeads[0].ondragenter(event(newHeads[0]));
+  await new Promise(resolve=>setTimeout(resolve,250));
+  assert.equal(rw.runCanvasCode('focusDate'),null);
+  rq('[data-person="kayla"]').ondragend();
+  // Returning to the already expanded day must cancel another day's timer.
+  rw.runCanvasCode(`expandDay('${newHeads[0].dataset.date}');queueExpand('${newHeads[1].dataset.date}');queueExpand('${newHeads[0].dataset.date}')`);
+  await new Promise(resolve=>setTimeout(resolve,250));
+  assert.equal(rw.runCanvasCode('focusDate'),newHeads[0].dataset.date);
+  rd.window.close();
+}
 q('#zoom-in').click();assert.equal(q('#zoom-value').textContent,'125%');q('#zoom-out').click();q('#zoom-out').click();assert.equal(q('#zoom-value').textContent,'75%');q('#zoom-value').click();assert.equal(saved().settings.zoom,1);
 kayla().querySelector('.shift-edit').click();q('[data-type="open"]').click();assert.equal(saved().shifts[1].segments[0].duration,8);
 q('[data-type="admin"]').click();assert.equal(saved().shifts[1].segments.length,2);
@@ -272,4 +318,18 @@ assert.ok(cq('.month-picker-heading .calendar-dot'));
 cq('[data-calendar-date="2029-01-01"]').click();assert.equal(run('dateKey(week)'),'2029-01-01');
 assert.equal(stored(),before);cw.close();
 }
-console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/persistence, settings tabs, updates, weekly schedules, copies, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();
+{
+const bg=boot(),bw=bg.window,bq=s=>bw.document.querySelector(s);
+bq('#add-person').click();assert.equal(bw.document.querySelectorAll('[name=background]').length,5);
+for(const id of ['car','city','forest','snow']){
+  bq(`[name=background][value="${id}"]`).click();
+  assert.equal(JSON.parse(bw.localStorage.getItem('flow-plan-v1')).settings.background,id);
+  assert.equal(bw.document.documentElement.classList.contains('has-background'),true);
+  assert.match(bw.document.documentElement.style.getPropertyValue('--background-image'),/assets/);
+}
+const reloaded=boot(JSON.parse(bw.localStorage.getItem('flow-plan-v1')));
+assert.match(reloaded.window.document.documentElement.style.getPropertyValue('--background-image'),/snowy/);reloaded.window.close();
+bq('[name=background][value=""]').click();assert.equal(bw.document.documentElement.classList.contains('has-background'),false);
+assert.equal(bw.document.documentElement.style.getPropertyValue('--background-image'),'');bw.close();
+}
+console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/backgrounds/persistence, settings tabs, updates, weekly schedules, copies, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();

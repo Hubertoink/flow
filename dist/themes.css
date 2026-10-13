@@ -20,6 +20,19 @@
   --shadow:#11111b80;--shift-surface:#313244;--on-accent:#f5eaff;
 }
 body{background:var(--base);color:var(--text)}
+.has-background body{isolation:isolate}
+.has-background body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(color-mix(in srgb,var(--base) 48%,transparent),color-mix(in srgb,var(--base) 48%,transparent)),var(--background-image);background-position:center;background-size:cover}
+.has-background .board{position:relative;isolation:isolate}
+.has-background .board::before{content:'';position:absolute;inset:-20px;z-index:-1;pointer-events:none;background-image:linear-gradient(color-mix(in srgb,var(--board) 82%,transparent),color-mix(in srgb,var(--board) 82%,transparent)),var(--background-image);background-position:center;background-size:cover;filter:blur(12px)}
+.has-background #timeline .day-head{background:color-mix(in srgb,var(--header) 88%,transparent)}
+.background-options{border:0;margin:20px 0 0;padding:0}
+.background-options legend{font-size:14px;font-weight:600}
+.background-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.background-grid label{position:relative;display:flex;flex-direction:column;gap:7px;min-width:0;padding:8px;border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:11px;color:var(--text)}
+.background-grid label:has(input:checked){border-color:var(--accent);background:var(--hover)}
+.background-grid input{position:absolute;top:12px;left:12px;width:14px;height:14px;padding:0;margin:0;accent-color:var(--accent)}
+.background-grid img,.background-none{width:100%;height:70px;border-radius:6px;object-fit:cover;background:var(--base)}
+@media print{.has-background body::before,.has-background .board::before{display:none!important}.has-background #app>.topbar,.has-background #app>.footer,.has-background .dock{background:transparent}.has-background #timeline .day-head{background:#f3f5f8}}
 #date-range{padding:4px 6px;border-radius:6px;white-space:nowrap}
 #date-range:hover,#date-range[aria-expanded="true"]{background:var(--hover)}
 .month-picker{position:fixed;z-index:100;width:min(310px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);box-shadow:0 12px 40px var(--shadow)}

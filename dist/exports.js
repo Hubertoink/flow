@@ -31,6 +31,7 @@ function readPlanTransfer(text){
   if(!Array.isArray(input.people)||!Array.isArray(input.shifts)||input.people.length>1000||input.shifts.length>50000)fail('Mitarbeitende oder Schichten fehlen oder sind zu umfangreich.');
   if(!object(input.settings))fail('Einstellungen fehlen.');
   const settings=input.settings;
+  if(settings.background!==undefined&&settings.background!==''&&!backgrounds.some(background=>background.id===settings.background))fail('Der Hintergrund ist unbekannt.');
   if(typeof settings.weekend!=='boolean'||(settings.theme!==undefined&&!themes.includes(settings.theme))||(settings.zoom!==undefined&&!number(settings.zoom,.5,2)))fail('Design, Wochenende oder Zoom sind ungültig.');
   if(settings.breakRules!==undefined&&(!Array.isArray(settings.breakRules)||settings.breakRules.length>100))fail('Pausenregeln sind ungültig.');
   const rules=(settings.breakRules||[]).map(rule=>{
@@ -76,14 +77,14 @@ function readPlanTransfer(text){
     return {id:s.id,person:s.person,date:s.date,start:s.start,length,y,segments};
   });
   unique(shifts.map(s=>s.id),'Schichten');unique(segmentIds,'Aufgaben');
-  return {week:selectedWeek,plan:{version:3,people,shifts,taskTypes,settings:{weekend:settings.weekend,breakRules:rules,...(settings.theme?{theme:settings.theme}:{}),...(settings.zoom!==undefined?{zoom:settings.zoom}:{})}}};
+  return {week:selectedWeek,plan:{version:3,people,shifts,taskTypes,settings:{weekend:settings.weekend,breakRules:rules,...(settings.theme?{theme:settings.theme}:{}),...(settings.background!==undefined?{background:settings.background}:{}),...(settings.zoom!==undefined?{zoom:settings.zoom}:{})}}};
 }
 function applyImportedPlan(transfer){
   clearDrop();closePanel();closeWeekInfo();closeMonthPicker();
   data=transfer.plan;tasks.splice(0,tasks.length,...data.taskTypes);
   selected=null;editing=null;focusDate=null;picked=null;copyPicked=false;copiedShift=null;copiedTask=null;
   zoom=Number(data.settings.zoom)||1;week=monday(parseDate(transfer.week||todayKey()));
-  applyTheme();renderLegend();refresh();
+  applyTheme();applyBackground();renderLegend();refresh();
 }
 function storeImportedPlan(transfer,backup=true){
   endGesture(true);

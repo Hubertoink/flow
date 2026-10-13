@@ -15,6 +15,6 @@ for (const [source, target] of [
   else await copyFile(from,to);
 }
 await mkdir(path.join('dist','assets'), {recursive: true});
-for (const file of ['Flow!_Logo.png', 'Flow__Logo.ico']) {
+for (const file of ['Flow!_Logo.png', 'Flow__Logo.ico','a_car_with_trees_on_it.png','a_city_skyline_with_a_plane_in_the_sky.png','a_foggy_forest_with_trees_and_bushes.png','a_group_of_trees_in_a_snowy_field.jpg']) {
   await copyFile(path.join('assets',file), path.join('dist','assets',file));
 }

@@ -6,12 +6,25 @@ if(Array.isArray(data.taskTypes))tasks.splice(0,tasks.length,...data.taskTypes);
 if(!tasks.some(t=>t.id==='flex'))tasks.push({id:'flex',name:'Flexible Aufgabe',color:'#b9a5eb'});
 data.settings ||= {weekend:false};
 const themes=['dark','light','catppuccin'];
+const backgrounds=[
+  {id:'car',name:'Violette Abendlandschaft',file:'a_car_with_trees_on_it.png'},
+  {id:'city',name:'Skyline im Abendlicht',file:'a_city_skyline_with_a_plane_in_the_sky.png'},
+  {id:'forest',name:'Nebelwald',file:'a_foggy_forest_with_trees_and_bushes.png'},
+  {id:'snow',name:'Winterlandschaft',file:'a_group_of_trees_in_a_snowy_field.jpg'}
+];
+function applyBackground(){
+  const background=backgrounds.find(item=>item.id===data.settings.background);
+  document.documentElement.classList.toggle('has-background',!!background);
+  if(background)document.documentElement.style.setProperty('--background-image',`url("assets/${background.file}")`);
+  else document.documentElement.style.removeProperty('--background-image');
+}
 function applyTheme(){
   const theme=themes.includes(data.settings.theme)?data.settings.theme:'dark';
   document.documentElement.dataset.theme=theme;
   document.querySelector('meta[name="theme-color"]').content={dark:'#10151f',light:'#eef1f7',catppuccin:'#1e1e2e'}[theme];
 }
 applyTheme();
+applyBackground();
 data.people.forEach(person=>{person.hours ??= person.end-person.start;person.weekdayHours=Array.from({length:7},(_,index)=>Number.isFinite(person.weekdayHours?.[index])?person.weekdayHours[index]:index<5?person.hours:0);person.weeklyHours ??= person.weekdayHours.reduce((total,value)=>total+value,0);person.from ||= '';person.until ||= '';});
 data.shifts.forEach((s,index)=>{
   s.y ??= 32+data.shifts.slice(0,index).filter(x=>x.date===s.date).length*64;
@@ -158,9 +171,10 @@ function renderTimeline(){
     });
   });
   updateFocus();applyZoom();renderWeekInfo();
-  grid.querySelectorAll('.day-head').forEach(b=>{b.onclick=()=>expandDay(focusDate===b.dataset.date?null:b.dataset.date);b.ondragover=e=>{if(drag){e.preventDefault();const blocked=dropBlocked(b.dataset.date);e.dataTransfer.dropEffect=blocked||drag.kind==='task-copy'?'none':'copy';const cell=b.parentElement.querySelector('.day-cell');if(blocked)previewDrop(cell,e);else queueExpand(b.dataset.date);}};b.ondrop=e=>{e.preventDefault();if(drag?.kind==='person')createShift(drag.id,b.dataset.date,8,32);else if(drag?.kind==='copy')placeCopy(b.dataset.date);else if(drag?.kind==='task-copy')placeTaskCopy(null);clearDrop();};});
+  grid.querySelectorAll('.day-column').forEach(column=>{column.ondragleave=e=>{if(column.contains(e.relatedTarget))return;removePreview(column.querySelector('.day-cell'));if(hoverDay===column.dataset.date){clearTimeout(expandTimer);hoverDay=null;}};});
+  grid.querySelectorAll('.day-head').forEach(b=>{b.onclick=()=>expandDay(focusDate===b.dataset.date?null:b.dataset.date);b.ondragenter=b.ondragover=e=>{if(drag){e.preventDefault();const blocked=dropBlocked(b.dataset.date);e.dataTransfer.dropEffect=blocked||drag.kind==='task-copy'?'none':'copy';const cell=b.parentElement.querySelector('.day-cell');if(blocked)previewDrop(cell,e);else {document.querySelectorAll('.day-cell').forEach(removePreview);queueExpand(b.dataset.date);}}};b.ondrop=e=>{e.preventDefault();if(drag?.kind==='person')createShift(drag.id,b.dataset.date,8,32);else if(drag?.kind==='copy')placeCopy(b.dataset.date);else if(drag?.kind==='task-copy')placeTaskCopy(null);clearDrop();};});
   grid.querySelectorAll('.day-cell').forEach(cell=>{
-    cell.ondragover=e=>{if(!drag)return;e.preventDefault();if((drag.kind==='person'||drag.kind==='copy'||drag.kind==='task-copy')&&!dropBlocked(cell.dataset.date))queueExpand(cell.dataset.date);previewDrop(cell,e);};
+    cell.ondragenter=cell.ondragover=e=>{if(!drag)return;e.preventDefault();if((drag.kind==='person'||drag.kind==='copy'||drag.kind==='task-copy')&&!dropBlocked(cell.dataset.date))queueExpand(cell.dataset.date);previewDrop(cell,e);};
     cell.ondragleave=e=>{if(!cell.contains(e.relatedTarget))removePreview(cell);};
     cell.ondrop=e=>{e.preventDefault();removePreview(cell);if(!drag)return;const payload=drag;clearDrop();if(payload.kind==='person')createShift(payload.id,cell.dataset.date,hourAt(cell,e.clientX),yAt(cell,e.clientY));else if(payload.kind==='copy')placeCopy(cell.dataset.date,yAt(cell,e.clientY));else {const s=getShift(e.target.closest('.shift')?.dataset.shift);if(payload.kind==='task-copy')placeTaskCopy(s,s?hourAt(cell,e.clientX)-s.start:0);else if(s)addTask(s,payload.id,hourAt(cell,e.clientX)-s.start);}};
     cell.onclick=e=>{if(suppressClick||e.target.closest('.shift'))return;if(copyPicked){if(copiedTask)placeTaskCopy(null);else placeCopy(cell.dataset.date,yAt(cell,e.clientY));}else if(picked)createShift(picked,cell.dataset.date,hourAt(cell,e.clientX),yAt(cell,e.clientY));else {animateLayout(()=>{editing=null;closePanel();renderTimeline();});}};
@@ -187,7 +201,7 @@ function updateFocus(){const ds=dates();$('#timeline').style.gridTemplateColumns
   el.querySelectorAll('.shift').forEach(shift=>shift.inert=folded);
 });}
 function expandDay(date){closePanel();focusDate=date;updateFocus();updateDockHours();setTimeout(updateTaskLabels,300);}
-function queueExpand(date){updateDockHours(date);if(focusDate===date||hoverDay===date)return;clearTimeout(expandTimer);hoverDay=date;expandTimer=setTimeout(()=>{expandDay(date);hoverDay=null;},220);}
+function queueExpand(date){updateDockHours(date);if(hoverDay===date)return;clearTimeout(expandTimer);hoverDay=null;if(focusDate===date)return;hoverDay=date;expandTimer=setTimeout(()=>{expandDay(date);hoverDay=null;},220);}
 function yAt(cell,y){let local=(y-cell.getBoundingClientRect().top)/zoom-20;const open=getShift(editing);if(open&&gesture?.s.id!==open.id&&open.date===cell.dataset.date&&local>open.y+44)local=Math.max(open.y+44,local-editExtra(open));return Math.max(32,Math.round(local/16)*16);}
 function freeY(date,wanted,ignore){let y=Math.max(32,wanted);while(data.shifts.some(s=>s.id!==ignore&&s.date===date&&Math.abs(s.y-y)<56))y+=64;return y;}
 function hourAt(cell,x){const r=cell.getBoundingClientRect();return snap(8+(x-r.left)/r.width*DAY_SPAN);}
@@ -195,7 +209,7 @@ function removePreview(cell){cell.classList.remove('drag-over','drop-blocked');c
 function dropBlocked(date){if(drag?.kind!=='person'&&drag?.kind!=='copy')return '';const p=data.people.find(p=>p.id===drag.id);if(!p||!activeOn(p,date))return 'An diesem Tag nicht im Team';if(drag.kind==='person'&&weekdayHours(p,date)===0)return 'Freier Tag laut Arbeitszeitmodell';if(drag.kind==='person'&&attendanceHours(weekdayHours(p,date))>DAY_SPAN)return 'Tagesstunden einschließlich Pause passen nicht in 08:00–24:00';return data.shifts.some(s=>s.person===p.id&&s.date===date)?`${p.name} ist bereits eingeplant`:'';}
 function clearDrop(){drag=null;clearTimeout(expandTimer);hoverDay=null;$('.task-copy-ghost')?.remove();document.querySelectorAll('.task-copy-target').forEach(el=>el.classList.remove('task-copy-target'));document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours();}
 function previewDrop(cell,e){
-  removePreview(cell);updateDockHours(cell.dataset.date);
+  document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours(cell.dataset.date);
   if(drag.kind==='task-copy'){const s=getShift(e.target.closest('.shift')?.dataset.shift),placement=taskCopyPlacement(s,s?hourAt(cell,e.clientX)-s.start:0);if(placement.error){e.dataTransfer.dropEffect='none';cell.classList.add('drop-blocked');cell.insertAdjacentHTML('beforeend',`<span class="drop-rejection">${icon('ban')}${esc(placement.error)}</span>`);return;}e.dataTransfer.dropEffect='copy';const {gap}=placement,start=s.start+gap.offset;cell.insertAdjacentHTML('beforeend',`<div class="drop-preview" style="top:${displayY(s)}px;left:${(start-DAY_START)/DAY_SPAN*100}%;width:${gap.duration/DAY_SPAN*100}%"><span>${fmtTime(start)} · ${hours(gap.duration)}</span></div>`);return;}
   const blocked=dropBlocked(cell.dataset.date);if(blocked){e.dataTransfer.dropEffect='none';cell.classList.add('drop-blocked');cell.insertAdjacentHTML('beforeend',`<span class="drop-rejection">${icon('ban')}${esc(blocked)}</span>`);return;}e.dataTransfer.dropEffect='copy';
   let start,length,y;
@@ -314,6 +328,10 @@ function openSettings(tab){
     data.settings.breakRules=rules;persist();refresh();$('#break-error').textContent='';toast('Pausenregel gespeichert. Ist-Stunden wurden neu berechnet.');
   };
   $('#theme').value=document.documentElement.dataset.theme;
+  $('#settings-panel-general').insertAdjacentHTML('beforeend',`<fieldset class="background-options"><legend>Hintergrund</legend><p class="modal-note">Außerhalb des Canvas sichtbar, im Canvas weichgezeichnet und kontrastärmer. Druck und Bildexport bleiben ohne Hintergrundbild.</p><div class="background-grid">${[{id:'',name:'Kein Hintergrund'},...backgrounds].map(background=>`<label><input type="radio" name="background" value="${background.id}" ${background.id===(data.settings.background||'')?'checked':''}>${background.file?`<img src="assets/${background.file}" alt="" loading="lazy">`:'<span class="background-none" aria-hidden="true"></span>'}<span>${background.name}</span></label>`).join('')}</div></fieldset>`);
+  document.querySelectorAll('[name=background]').forEach(input=>input.onchange=()=>{
+    data.settings.background=input.value;applyBackground();persist();
+  });
   $('#theme').onchange=e=>{data.settings.theme=e.target.value;applyTheme();persist();};
   $('#weekend').onchange=e=>{data.settings.weekend=e.target.checked;persist();refresh();};$('#new-person').onclick=()=>openPerson();document.querySelectorAll('[data-edit-person]').forEach(el=>el.onclick=()=>openPerson(data.people.find(p=>p.id===el.dataset.editPerson)));
   $('#new-preset').onclick=()=>openPreset();document.querySelectorAll('[data-preset]').forEach(el=>el.onclick=()=>openPreset(task(el.dataset.preset)));

@@ -131,12 +131,15 @@ invalidPlan(t=>t.plan.shifts[0].segments[0].type='missing');
 invalidPlan(t=>t.plan.settings.breakRules=[{after:6,minutes:400}]);
 invalidPlan(t=>t.plan.settings.breakRules=[{after:6,minutes:30},{after:9,minutes:20}]);
 invalidPlan(t=>t.plan.taskTypes=null);
+invalidPlan(t=>t.plan.settings.background='../../outside.png');
+const backgroundTransfer=structuredClone(transfer);backgroundTransfer.plan.settings.background='forest';
+assert.equal(w.readPlanTransfer(JSON.stringify(backgroundTransfer)).plan.settings.background,'forest');
 assert.throws(()=>w.readPlanTransfer('{bad'),/gültiges JSON/);
 assert.throws(()=>w.readPlanTransfer(' '.repeat(10*1024*1024+1)),/10 MB/);
 
 const importCandidate=structuredClone(transfer);
 importCandidate.week=day(7);importCandidate.plan.people[0].name='Übertragene Person <Team>';
-importCandidate.plan.settings.theme='catppuccin';importCandidate.plan.settings.weekend=true;
+importCandidate.plan.settings.theme='catppuccin';importCandidate.plan.settings.weekend=true;importCandidate.plan.settings.background='forest';
 const candidateText=JSON.stringify(importCandidate),planBefore=storage(),weekBefore=w.runExportCode('dateKey(week)');
 const chooseImport=async(text,name='Plan.json')=>{
   const input=q('#plan-import-file');
@@ -163,6 +166,7 @@ q('#plan-import-form').dispatchEvent(new w.Event('submit',{cancelable:true}));
 assert.equal(q('#modal').open,false);assert.equal(w.runExportCode('dateKey(week)'),importCandidate.week);
 assert.equal(w.runExportCode('data.people[0].name'),'Übertragene Person <Team>');
 assert.equal(d.documentElement.dataset.theme,'catppuccin');assert.equal(q('#zoom-value').textContent,'125%');
+assert.match(d.documentElement.style.getPropertyValue('--background-image'),/foggy/);
 assert.equal(q('#copy-tray').hidden,true);assert.equal(q('.editing'),null);
 assert.equal(JSON.parse(storage()).settings.breakRules[0].minutes,30);
 const recovery=JSON.parse(w.localStorage.getItem('flow-plan-before-import'));
@@ -172,6 +176,7 @@ w.openPlanImport();q('#restore-before-import').click();assert.equal(q('#plan-imp
 q('#accept-plan-replacement').click();q('#plan-import-form').dispatchEvent(new w.Event('submit',{cancelable:true}));
 assert.equal(w.runExportCode('data.people[0].name'),transfer.plan.people[0].name);
 assert.equal(w.runExportCode('dateKey(week)'),weekBefore);assert.equal(d.documentElement.dataset.theme,'light');
+assert.equal(d.documentElement.classList.contains('has-background'),false);
 assert.equal(w.localStorage.getItem('flow-plan-before-import'),JSON.stringify(recovery));
 w.openPlanImport();await chooseImport('{broken');assert.equal(q('#confirm-plan-import').disabled,true);assert.match(q('#plan-import-error').textContent,/gültiges JSON/);
 q('#restore-before-import').click();q('#accept-plan-replacement').click();await chooseImport(candidateText);

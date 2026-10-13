@@ -5,6 +5,10 @@ kopierbaren Teilschichten und Ist-/Sollstunden.
 
 ## Oberfläche
 
+Beim Ziehen einer Person oder Schichtkopie werden belegte Tage als gesperrt
+angezeigt. Beim Wechsel auf einen freien Tag ist das Ablegen sofort wieder
+möglich; die bisherige Warnung und ausstehende Aufklapp-Timer werden entfernt.
+
 Die Einstellungen (Zahnrad im Dock oder **Weitere Optionen → Einstellungen**)
 sind über ein linkes Menü in **Allgemein**, **Pausenregelung**, **Mitarbeitende**,
 **Aufgabenvorlagen** und **Updates** gegliedert; die Reiter lassen sich auch
@@ -34,6 +38,12 @@ Die Pausenregel bleibt beim Neustart erhalten und ist im JSON-Backup enthalten.
 Unter **Einstellungen → Allgemein → Design** stehen **Dunkel**, **Hell**
 und **Catppuccin Mocha** zur Wahl. Die Auswahl bleibt beim Neustart erhalten;
 Text, Eingabefelder, Raster und Bildexport verwenden das gewählte Design.
+Unter **Einstellungen → Allgemein → Hintergrund** können die vier mitgelieferten
+Landschaftsbilder oder **Kein Hintergrund** ausgewählt werden. Außerhalb des Canvas
+bleibt das Motiv deutlicher sichtbar; im Canvas sorgen Weichzeichnung und eine
+stärkere Design-Überlagerung für lesbare Schichten. Die Auswahl wird gespeichert
+und mit dem vollständigen Planexport übertragen. Bilder werden lokal mitgeliefert;
+Druck und PNG-Export bleiben ohne Hintergrundbild.
 Die Tagesköpfe trennen Wochentag/Datum und Stundenleiste mit klaren Abständen.
 Der kompakte Tageskopf ist 60 px hoch (mobil 56 px). Die Canvas-Höhe richtet
 sich nach dem verfügbaren Platz und den tatsächlichen Schichten, statt eine

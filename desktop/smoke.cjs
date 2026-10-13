@@ -56,6 +56,16 @@ const {app}=require('electron');
       if(dialogBox.width<700||nav.width<150||nav.height<150)throw new Error('Settings navigation layout broken: '+JSON.stringify({dialog:dialogBox.width,nav:[nav.width,nav.height]}));
       document.querySelector('#modal-close').click();
       if(!document.querySelector('.brand-logo').naturalWidth)throw new Error('Logo did not load');
+      for(const background of backgrounds){
+        const image=new Image();image.src='assets/'+background.file;await image.decode();
+        if(!image.naturalWidth)throw new Error('Background did not load: '+background.id);
+      }
+      data.settings.background='forest';applyBackground();
+      if(getComputedStyle(document.querySelector('.board'),'::before').filter!=='blur(12px)')throw new Error('Canvas background is not softened');
+      for(const selector of ['.topbar','.dock','.footer']){
+        const style=getComputedStyle(document.querySelector(selector));
+        if(style.backgroundColor!=='rgba(0, 0, 0, 0)'||parseFloat(style.borderTopWidth)!==0)throw new Error('Unexpected background tile: '+selector);
+      }
       const snapshot=weeklyExportSnapshot(false),bytes=await buildWeeklyWorkbook(snapshot).xlsx.writeBuffer();
       if(bytes[0]!==80||bytes[1]!==75)throw new Error('Invalid Excel workbook');
       const date=dateKey(week);
@@ -91,6 +101,7 @@ const {app}=require('electron');
     if(persisted!=='ok')throw new Error('Local storage did not survive reload');
     await window.webContents.executeJavaScript(`(()=>{
       if(data.people[0].name!=='Import-Test'||data.settings.breakRules[0].minutes!==30)throw new Error('Imported plan did not survive reload');
+      if(!document.documentElement.classList.contains('has-background')||data.settings.background!=='forest')throw new Error('Background did not survive reload');
       const previous=readPlanTransfer(localStorage.getItem(PLAN_RECOVERY_KEY));storeImportedPlan(previous,false);
       if(data.people[0].name==='Import-Test')throw new Error('Import recovery failed');
     })()`);
