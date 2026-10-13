@@ -5,6 +5,13 @@ kopierbaren Teilschichten und Ist-/Sollstunden.
 
 ## Oberfläche
 
+Schichten eines Tages stehen kompakt untereinander mit 12 Pixeln Abstand,
+ohne große Leerstellen. Vertikales Ziehen bestimmt die Reihenfolge: oberhalb
+oder unterhalb einer anderen Schicht. Die anderen Schichten rücken mit;
+die Vorschau entspricht der Position nach dem Loslassen. Abbrechen stellt
+die vorherige Reihenfolge wieder her. Bestehende und importierte Pläne werden
+in ihrer bisherigen Reihenfolge kompakt angeordnet.
+
 Unter **Allgemein** lassen sich **Samstag anzeigen** und **Sonntag anzeigen**
 unabhängig aktivieren. Dieselbe Auswahl gibt es beim Excel- und PNG-Export.
 Ausgeblendete Tage behalten ihre Schichten; die Wochenstunden zählen weiterhin

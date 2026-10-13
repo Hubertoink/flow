@@ -34,6 +34,47 @@ const dom=boot(),w=dom.window,d=w.document,q=s=>d.querySelector(s),all=s=>[...d.
 }
 assert.equal(all('.shift').length,0);assert.equal(all('.person-name').length,0);assert.equal(all('.token').length,4);assert.equal(q('.token time').textContent,'8 h');assert.equal(q('.save-status'),null);assert.equal(all('#add-person svg').length,1);
 {
+  const layoutDom=boot(),lw=layoutDom.window,ld=lw.document,run=code=>lw.runCanvasCode(code);
+  run(`data.shifts=[
+    {id:'fixed',person:'lea',date:dateKey(week),start:10,length:4,y:200,segments:[]},
+    {id:'moving',person:'niko',date:dateKey(week),start:10,length:4,y:320,segments:[]}
+  ];compactShifts();refresh()`);
+  assert.equal(run('data.shifts[0].y'),32);
+  assert.equal(run('data.shifts[1].y'),88);
+  assert.equal(run('freeY(dateKey(week),16,"moving")'),32);
+  assert.equal(run('freeY(dateKey(week),48,"moving")'),88);
+  assert.equal(run('freeY(dateKey(week),900,"moving")'),88);
+  function moveTo(wanted,{cancel=false,zoom=1,grab=7}={}){
+    run(`data.settings.zoom=${zoom};zoom=${zoom};refresh()`);
+    const el=ld.querySelector('[data-shift="moving"]'),cell=el.parentElement,previous=run('data.shifts[1].y');
+    cell.getBoundingClientRect=()=>({left:0,top:50,width:1200});
+    el.getBoundingClientRect=()=>({left:0,top:50+previous*zoom,width:300,height:44*zoom});
+    ld.elementFromPoint=()=>cell;
+    el.onpointerdown({button:0,currentTarget:el,target:el,clientX:300,clientY:50+(previous+grab)*zoom,pointerId:1});
+    ld.dispatchEvent(new lw.MouseEvent('pointermove',{bubbles:true,cancelable:true,clientX:300,clientY:50+(wanted+grab)*zoom}));
+    const preview=run('data.shifts[1].y');
+    ld.dispatchEvent(new lw.Event(cancel?'pointercancel':'pointerup'));
+    return {preview,final:run('data.shifts[1].y'),previous};
+  }
+  assert.deepEqual(moveTo(16),{preview:32,final:32,previous:88});
+  assert.equal(run('data.shifts[0].y'),88);
+  assert.deepEqual(moveTo(104,{zoom:1.5,grab:35}),{preview:88,final:88,previous:32});
+  assert.deepEqual(moveTo(900),{preview:88,final:88,previous:88});
+  assert.deepEqual(moveTo(16,{cancel:true}),{preview:32,final:88,previous:88});
+  assert.equal(run('data.shifts[0].y'),32);
+  // Native drag previews and placement must resolve to the same nearest gap.
+  const cell=ld.querySelector('.day-cell'),dt={setData(){},effectAllowed:'',dropEffect:''};
+  const event={preventDefault(){},target:cell,dataTransfer:dt,clientX:300,clientY:50+900+20};
+  ld.querySelector('[data-person="kayla"]').ondragstart(event);
+  cell.ondragover(event);
+  assert.equal(parseFloat(cell.querySelector('.drop-preview').style.top),144);
+  cell.ondrop(event);
+  assert.equal(run('data.shifts.at(-1).y'),144);
+  const stored=JSON.parse(lw.localStorage.getItem('flow-plan-v1')),again=boot(stored);
+  assert.equal(again.window.runCanvasCode('data.shifts.at(-1).y'),144);again.window.close();
+  layoutDom.window.close();
+}
+{
   const zeroDom=boot(),zw=zeroDom.window,zd=zw.document,zq=s=>zd.querySelector(s),run=code=>zw.runCanvasCode(code);
   const originalHours=run('JSON.stringify(data.people[0].weekdayHours)'),originalTarget=run('data.people[0].weeklyHours');
   run('data.settings.saturday=true;data.settings.sunday=true;data.settings.breakRules=[{after:2,minutes:30}];refresh()');
@@ -66,7 +107,7 @@ assert.equal(all('.shift').length,0);assert.equal(all('.person-name').length,0);
 }
 q('.day-head').click();assert.equal(all('.day-head').length,5);assert.equal(all('.expanded').length,1);
 function place(person,x,y){q(`[data-person="${person}"]`).click();const cell=q('.day-cell');cell.getBoundingClientRect=()=>({left:0,top:0,width:1200});cell.dispatchEvent(new w.MouseEvent('click',{clientX:x,clientY:y,bubbles:true}));}
-place('niko',100,180);place('kayla',200,70);assert.equal(all('.shift').length,2);assert.ok(saved().shifts[1].y<saved().shifts[0].y);assert.equal(saved().shifts[1].length,8);assert.equal(saved().shifts[1].start,10.75);
+place('niko',100,180);place('kayla',200,40);assert.equal(all('.shift').length,2);assert.ok(saved().shifts[1].y<saved().shifts[0].y);assert.equal(saved().shifts[1].length,8);assert.equal(saved().shifts[1].start,10.75);
 const kayla=()=>q(`[data-shift="${saved().shifts[1].id}"]`);
 kayla().querySelector('.shift-edit').click();assert.equal(q('#detail').hidden,true);assert.equal(kayla().querySelector('.shift-edit').getAttribute('aria-pressed'),'true');kayla().querySelector('.shift-edit').click();assert.equal(kayla().classList.contains('editing'),false);
 const transfer={setData(){},effectAllowed:'',dropEffect:''};q('[data-person="kayla"]').ondragstart({dataTransfer:transfer});q('.day-cell').ondragover({preventDefault(){},dataTransfer:transfer,target:q('.day-cell'),clientX:100,clientY:100});assert.equal(transfer.dropEffect,'none');assert.match(q('.drop-rejection').textContent,/bereits eingeplant/);assert.equal(q('.drop-preview'),null);q('[data-person="kayla"]').ondragend();

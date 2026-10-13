@@ -89,6 +89,7 @@ function applyImportedPlan(transfer){
 }
 function storeImportedPlan(transfer,backup=true){
   endGesture(true);
+  compactShifts(transfer.plan.shifts);
   const serialized=JSON.stringify(transfer.plan);
   // Write before changing live state; a failed write must leave the current plan intact.
   if(backup)localStorage.setItem(PLAN_RECOVERY_KEY,JSON.stringify(planTransfer()));
