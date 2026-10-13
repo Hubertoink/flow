@@ -34,3 +34,27 @@
 @media print{.week-info,.week-info-toggle,.copy-tray,.shift-copy{display:none!important}}
 .copy-badge:hover,.copy-badge:focus-visible{animation-play-state:paused}
 .editing .shift-edit{width:20px;height:20px;top:2px}
+
+/* Expanded task lanes retain the exact horizontal time scale. */
+.shift.editing{border-radius:12px;background:color-mix(in srgb,var(--person) 23%,#192231);outline:1px solid #ffffff16;box-shadow:none}
+.shift.editing:hover{background:color-mix(in srgb,var(--person) 23%,#192231)}
+.shift.editing .shift-meta{top:16px;color:#e0e6ef}
+.shift.editing .shift-name{font-weight:500}.shift.editing .shift-time{color:#aebbd0}
+.shift.editing .task-track{top:54px;bottom:auto;height:calc(var(--task-count)*48px);overflow:visible;border-radius:0}
+.shift.editing .segment{top:calc(var(--row)*48px);height:40px;border-radius:10px;padding:0 11px;justify-content:center;box-shadow:inset 0 0 0 1px #ffffff12}
+.shift.editing .task-caption{padding:0;align-items:baseline}.shift.editing .task-resize:after{top:12px;bottom:12px;right:3px;border-radius:1px;background:#17203250}.shift.editing .task-start:after{left:3px;right:auto}
+.shift.editing .shift-edit,.shift.editing .shift-copy{color:#d2dbea;background:#ffffff0c}.shift.editing .shift-edit:hover,.shift.editing .shift-copy:hover{background:#ffffff20}
+.shift.editing .resize-handle:after{background:#c7d1e580}
+.edit-cue .segment{animation-delay:270ms}.edit-cue .segment:nth-child(even){animation-delay:305ms}
+
+.shift.editing .task-track{pointer-events:auto}
+
+/* A copied shift is a small version of the canvas bar. */
+.dock{position:relative;padding-right:40px}.dock #add-person{position:absolute;right:0;top:12px;margin:0}.copy-tray{flex:0 0 100%;justify-content:center;margin:0;order:3}
+.copy-badge{display:block;width:250px;height:40px;padding:0;background:var(--person);border:0;border-radius:15px;overflow:hidden;box-shadow:inset 0 0 0 1px #ffffff20}
+.copy-mini-track{position:absolute;inset:0;overflow:hidden;border-radius:inherit}.copy-mini-task{position:absolute;top:0;bottom:0;padding:19px 8px 3px;text-align:left;overflow:hidden}.copy-mini-task>span{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:9px}.copy-mini-meta{position:absolute;left:8px;top:5px;right:8px;display:flex;align-items:baseline;gap:7px;white-space:nowrap;pointer-events:none}.copy-mini-meta strong{font-size:9px}.copy-mini-meta time{font-size:8px}.copy-badge.selected{outline-offset:3px}
+.week-info{animation:week-open 200ms cubic-bezier(.22,.68,.18,1);transform-origin:bottom right}.weekly-comparison{display:flex;gap:12px;text-align:right;font-variant-numeric:tabular-nums}.weekly-comparison>span{display:flex;flex-direction:column;gap:3px;min-width:46px}.weekly-comparison small{font-size:8px;color:#8292aa;font-weight:400}.weekly-tasks{overflow:hidden}.week-empty{font-size:11px;color:#8b9ab2;padding-top:12px}
+@keyframes week-open{from{opacity:0;transform:translateY(7px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.task-outside{display:none}.editing .segment{overflow:visible}.editing .task-outside{position:absolute;display:flex;align-items:baseline;gap:7px;left:calc(100% + 11px);top:50%;transform:translateY(-50%);width:max-content;visibility:hidden;color:#dfe7f2;pointer-events:none;white-space:nowrap}.editing .task-outside b{font-size:10px;font-weight:500;overflow:hidden;text-overflow:ellipsis;width:auto}.editing .task-outside .task-time{color:#9eafc7;opacity:1}.editing .task-outside.on-left{left:auto;right:calc(100% + 11px)}.editing .outside-label .task-outside{visibility:visible}.editing .outside-label .task-caption{visibility:hidden}
+@media(prefers-reduced-motion:reduce){.week-info{animation:none}}
+.shift.editing .segment{min-width:0}
