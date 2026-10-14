@@ -159,3 +159,6 @@
 .activity-assignment:hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
 
 .canvas-export .day-agenda{position:relative;top:auto}
+
+/* Notifications stay above modal backdrops without blocking the dialog. */
+.toast[popover]{inset:auto auto 24px 50%;margin:0;width:max-content;max-width:calc(100vw - 32px)}.toast[popover]::backdrop{background:transparent;backdrop-filter:none;pointer-events:none}

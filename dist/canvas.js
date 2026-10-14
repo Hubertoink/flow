@@ -128,7 +128,20 @@ function wirePalette(form){const input=form.querySelector('input[name="color"]')
 const freeColor=used=>{const taken=new Set(used.map(color=>String(color).toLowerCase()));return taskPalette.find(color=>!taken.has(color))||taskPalette[0];};
 function colorPicker(t){return `<fieldset class="task-colors"><legend>Farbe</legend><div class="color-swatches">${taskPalette.map((color,i)=>`<button type="button" class="color-swatch" data-color="${color}" style="--swatch:${color}" aria-label="Farbe ${i+1}: ${color}" aria-pressed="${taskColor(t).toLowerCase()===color}"></button>`).join('')}</div><label class="custom-task-color"><span>Eigene Farbe</span><input id="task-color" type="color" value="${taskColor(t)}"></label></fieldset>`;}
 function persist(){syncActivities();compactShifts();data.taskTypes=tasks;if(window.flowTeam)return window.flowTeam.save();try{localStorage.setItem('flow-plan-v1',JSON.stringify(data));}catch{toast('Speichern fehlgeschlagen. Bitte den Plan über das Menü exportieren.');}}
-function toast(message,undo){clearTimeout(toastTimer);const el=$('#toast');el.innerHTML=`<span>${esc(message)}</span>${undo?'<button>Rückgängig</button>':''}`;el.hidden=false;if(undo){if(window.flowTeam)window.flowTeam.attachUndo(el.querySelector('button'));else el.querySelector('button').onclick=()=>{undo();el.hidden=true;};}toastTimer=setTimeout(()=>el.hidden=true,6000);}
+const toastElement=$('#toast'),toastDialogs=[];
+function syncToastLayer(){
+  const el=toastElement;if(!window.document||el.hidden)return;
+  const dialogs=[...document.querySelectorAll('dialog[open]')];
+  const parent=toastDialogs.filter(dialog=>dialog.open&&dialog.isConnected).at(-1)||dialogs.at(-1)||document.body;
+  // A high z-index cannot escape a modal backdrop. Keep the toast interactive
+  // inside the active dialog and render it above that dialog in the top layer.
+  if(el.hidePopover&&el.matches(':popover-open'))el.hidePopover();
+  if(el.parentElement!==parent)parent.append(el);
+  el.showPopover?.();
+}
+new MutationObserver(records=>{let changed=false;for(const {target,type} of records){if(type!=='attributes'||target.tagName!=='DIALOG')continue;changed=true;const index=toastDialogs.indexOf(target);if(index!==-1)toastDialogs.splice(index,1);if(target.open)toastDialogs.push(target);}if(changed||!toastElement.isConnected)syncToastLayer();}).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['open']});
+function hideToast(){const el=toastElement;if(!window.document)return;el.hidePopover?.();el.hidden=true;}
+function toast(message,undo){clearTimeout(toastTimer);const el=toastElement;el.innerHTML=`<span>${esc(message)}</span>${undo?'<button>Rückgängig</button>':''}`;el.hidden=false;syncToastLayer();if(undo){if(window.flowTeam)window.flowTeam.attachUndo(el.querySelector('button'));else el.querySelector('button').onclick=()=>{undo();hideToast();};}toastTimer=setTimeout(hideToast,6000);}
 function isoWeek(d){const v=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));v.setUTCDate(v.getUTCDate()+3);return Math.ceil(((v-Date.UTC(v.getUTCFullYear(),0,1))/86400000+1)/7);}
 function refresh(){renderDock();renderTimeline();window.renderProjects?.();}
 function renderDock(){

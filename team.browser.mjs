@@ -13,6 +13,13 @@ export async function runBrowserTests({url,email,password}){
     page.on('pageerror',error=>errors.push(error.message));
     await page.goto(url);await page.getByLabel('E-Mail',{exact:true}).fill(email);await page.getByLabel('Passwort',{exact:true}).fill(password);await page.getByRole('button',{name:'Anmelden',exact:true}).click();
     await page.locator('#team-user-toggle').waitFor();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+    await page.locator('#settings-button').click();await page.locator('#settings-tab-breaks').click();await page.locator('#break-form .primary-button').click();
+    await page.waitForFunction(()=>document.querySelector('#toast')?.matches(':popover-open'));
+    assert(await page.locator('#modal #toast').isVisible());
+    assert(await page.evaluate(()=>{const el=document.querySelector('#toast'),r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}));
+    await page.screenshot({path:'.flow-local/toast-over-dialog.png',fullPage:true});
+    await page.locator('#modal-close').click();await page.waitForFunction(()=>document.querySelector('#toast').parentElement===document.body&&document.querySelector('#toast').matches(':popover-open'));
+    await page.locator('#settings-button').click();await page.waitForFunction(()=>document.querySelector('#toast').parentElement===document.querySelector('#modal'));await page.locator('#modal-close').click();
     await page.locator('#next').click();
     await page.locator('.token').filter({hasText:'Admin Test'}).click();await page.locator('.day-cell').first().press('Enter');
     await page.waitForFunction(()=>data.shifts.some(s=>s.person===window.flowTeam.bootstrap.member.personId)&&!document.body.classList.contains('team-saving'));
