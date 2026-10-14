@@ -34,7 +34,15 @@ Beim Ziehen einer Person oder Schichtkopie werden belegte Tage als gesperrt
 angezeigt. Beim Wechsel auf einen freien Tag ist das Ablegen sofort wieder
 möglich; die bisherige Warnung und ausstehende Aufklapp-Timer werden entfernt.
 
-Die Einstellungen (Zahnrad im Dock oder **Weitere Optionen → Einstellungen**)
+Ganze Tage lassen sich ebenfalls kopieren: Beim Überfahren des Tageskopfs
+erscheint neben dem Wochentag ein Kopier-Symbol. Die Tageskopie liegt danach
+neben den Mitgliedern und wird wie eine Schichtkopie auf einen anderen Tag
+gezogen oder angeklickt und dort abgelegt. Personen, die dort bereits eingeplant
+oder nicht im Team sind, werden übersprungen; das Einfügen lässt sich rückgängig
+machen. Mitarbeitende und Aufgabenvorlagen bieten dieselben 20 Farbvorgaben
+wie flexible Aufgaben.
+
+Die Einstellungen (Zahnrad neben dem Drei-Punkte-Menü oder **Weitere Optionen → Einstellungen**)
 sind über ein linkes Menü in **Allgemein**, **Pausenregelung**, **Mitarbeitende**,
 **Aufgabenvorlagen** und **Updates** gegliedert; die Reiter lassen sich auch
 mit den Pfeiltasten wechseln. Bei schmalen Fenstern liegen sie oben.
