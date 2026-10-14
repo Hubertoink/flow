@@ -3,6 +3,20 @@
 Lokale Wochen- und Einsatzplanung mit verschiebbaren Personenschichten,
 kopierbaren Teilschichten und Ist-/Sollstunden.
 
+Die zusätzliche **Teamversion** bietet zentrale PostgreSQL-Speicherung, geschützte
+Admin-Ersteinrichtung, Einladung und Anmeldung, personenbezogene Planungsrechte,
+Schicht- und Wochensperren sowie Zwei-Faktor-Anmeldung. Benutzerfunktionen liegen
+im Dropdown neben dem Einstellungsicon. Lokal mit laufendem Docker Desktop:
+
+```powershell
+npm install
+npm run team:local
+```
+
+Danach **http://localhost:4174** öffnen. Der Einrichtungsschlüssel steht in
+`.flow-local/config.env`. Anleitung für Testablauf, Datenübernahme, Rechte,
+Docker/mittwald und Sicherungen: [Teamversion betreiben](docs/TEAM.md).
+
 ## Oberfläche
 
 Über den Personenschichten zeigt eine schmale Aufgaben-Spur, was am jeweiligen

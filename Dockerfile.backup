@@ -1,0 +1,7 @@
+FROM postgres:17-alpine
+LABEL org.opencontainers.image.source="https://github.com/Hubertoink/flow"
+RUN apk add --no-cache dcron tzdata
+ENV TZ=Europe/Berlin
+COPY scripts/database-backup.sh /usr/local/bin/flow-database-backup
+RUN chmod 755 /usr/local/bin/flow-database-backup && printf '0 3 * * * /usr/local/bin/flow-database-backup\n' > /etc/crontabs/root
+ENTRYPOINT ["/bin/sh", "-ec", "until pg_isready; do sleep 2; done; /usr/local/bin/flow-database-backup; crond -f -l 2 & cron_pid=$!; trap 'kill $cron_pid; wait $cron_pid' TERM INT; wait $cron_pid"]

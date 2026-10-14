@@ -1,0 +1,55 @@
+# Prebuilt images only. Domain routing/TLS are configured in mStudio.
+services:
+  app:
+    image: ${FLOW_IMAGE:?Versioned application image required}
+    entrypoint: ["node"]
+    command: ["server/main.mjs"]
+    environment:
+      NODE_ENV: production
+      FLOW_HOST: 0.0.0.0
+      FLOW_PORT: "8080"
+      FLOW_URL: ${FLOW_URL:?Public HTTPS URL required}
+      FLOW_AUTH_SECRET: ${FLOW_AUTH_SECRET:?Auth secret required}
+      FLOW_SETUP_TOKEN: ${FLOW_SETUP_TOKEN:?Setup token required}
+      FLOW_TRUST_PROXY: ${FLOW_TRUST_PROXY:-1}
+      DATABASE_URL: postgresql://flow:${FLOW_DB_PASSWORD:?Database password required}@database:5432/flow
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Flow! <flow@example.org>}
+    ports:
+      - "8080:8080/tcp"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+  database:
+    image: postgres:17-alpine
+    # Mittwald publishes this port inside the hosting environment, not to the internet.
+    ports:
+      - "5432:5432/tcp"
+    environment:
+      POSTGRES_DB: flow
+      POSTGRES_USER: flow
+      POSTGRES_PASSWORD: ${FLOW_DB_PASSWORD:?Database password required}
+    volumes:
+      - flow_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+  backup:
+    image: ${FLOW_BACKUP_IMAGE:?Versioned backup image required}
+    environment:
+      PGHOST: database
+      PGUSER: flow
+      PGDATABASE: flow
+      PGPASSWORD: ${FLOW_DB_PASSWORD:?Database password required}
+    volumes:
+      - flow_backups:/backups
+volumes:
+  flow_data:
+  flow_backups:

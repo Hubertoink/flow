@@ -1,6 +1,7 @@
 // Keep the v1 storage key so existing plans migrate without losing their history.
 let data;
-try { data=JSON.parse(localStorage.getItem('flow-plan-v1')); } catch {}
+if(window.flowTeam)data=structuredClone(window.flowTeam.initialPlan);
+else try { data=JSON.parse(localStorage.getItem('flow-plan-v1')); } catch {}
 if(!data || !Array.isArray(data.people) || !Array.isArray(data.shifts)) data={version:3,people:structuredClone(initialPeople),shifts:[],settings:{weekend:false}};
 if(Array.isArray(data.taskTypes))tasks.splice(0,tasks.length,...data.taskTypes);
 if(!tasks.some(t=>t.id==='flex'))tasks.push({id:'flex',name:'Flexible Aufgabe',color:'#b9a5eb'});
@@ -126,8 +127,8 @@ function paletteField(value){const current=String(value).toLowerCase();return `<
 function wirePalette(form){const input=form.querySelector('input[name="color"]'),sync=()=>form.querySelectorAll('.color-swatch').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===input.value.toLowerCase())));form.querySelectorAll('.color-swatch').forEach(b=>b.onclick=()=>{input.value=b.dataset.color;sync();});input.oninput=sync;}
 const freeColor=used=>{const taken=new Set(used.map(color=>String(color).toLowerCase()));return taskPalette.find(color=>!taken.has(color))||taskPalette[0];};
 function colorPicker(t){return `<fieldset class="task-colors"><legend>Farbe</legend><div class="color-swatches">${taskPalette.map((color,i)=>`<button type="button" class="color-swatch" data-color="${color}" style="--swatch:${color}" aria-label="Farbe ${i+1}: ${color}" aria-pressed="${taskColor(t).toLowerCase()===color}"></button>`).join('')}</div><label class="custom-task-color"><span>Eigene Farbe</span><input id="task-color" type="color" value="${taskColor(t)}"></label></fieldset>`;}
-function persist(){syncActivities();compactShifts();data.taskTypes=tasks;try{localStorage.setItem('flow-plan-v1',JSON.stringify(data));}catch{toast('Speichern fehlgeschlagen. Bitte den Plan über das Menü exportieren.');}}
-function toast(message,undo){clearTimeout(toastTimer);const el=$('#toast');el.innerHTML=`<span>${esc(message)}</span>${undo?'<button>Rückgängig</button>':''}`;el.hidden=false;if(undo)el.querySelector('button').onclick=()=>{undo();el.hidden=true;};toastTimer=setTimeout(()=>el.hidden=true,6000);}
+function persist(){syncActivities();compactShifts();data.taskTypes=tasks;if(window.flowTeam)return window.flowTeam.save();try{localStorage.setItem('flow-plan-v1',JSON.stringify(data));}catch{toast('Speichern fehlgeschlagen. Bitte den Plan über das Menü exportieren.');}}
+function toast(message,undo){clearTimeout(toastTimer);const el=$('#toast');el.innerHTML=`<span>${esc(message)}</span>${undo?'<button>Rückgängig</button>':''}`;el.hidden=false;if(undo){if(window.flowTeam)window.flowTeam.attachUndo(el.querySelector('button'));else el.querySelector('button').onclick=()=>{undo();el.hidden=true;};}toastTimer=setTimeout(()=>el.hidden=true,6000);}
 function isoWeek(d){const v=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));v.setUTCDate(v.getUTCDate()+3);return Math.ceil(((v-Date.UTC(v.getUTCFullYear(),0,1))/86400000+1)/7);}
 function refresh(){renderDock();renderTimeline();window.renderProjects?.();}
 function renderDock(){
@@ -146,9 +147,9 @@ function copyTask(id,taskId){const t=getShift(id)?.segments.find(t=>t.id===taskI
 const dayShifts=date=>data.shifts.filter(s=>s.date===date&&activeOn(data.people.find(p=>p.id===s.person),date)).toSorted((a,b)=>a.y-b.y||a.start-b.start);
 const dayLabel=(date,options={weekday:'long'})=>new Date(date+'T12:00:00').toLocaleDateString('de-DE',options);
 function copyDay(date){const shifts=dayShifts(date),activities=structuredClone(data.activities.filter(a=>a.date===date&&a.explicit));if(!shifts.length&&!activities.length)return;copiedDay={date,shifts:structuredClone(shifts),activities};copiedShift=null;copiedTask=null;copiedWeek=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}
-function dayCopyPlan(date){if(!copiedDay)return {add:[],skipped:0};const add=copiedDay.shifts.filter(s=>{const p=data.people.find(p=>p.id===s.person);return p&&activeOn(p,date)&&!data.shifts.some(other=>other.person===s.person&&other.date===date);});return {add,skipped:copiedDay.shifts.length-add.length};}
+function dayCopyPlan(date){if(!copiedDay)return {add:[],skipped:0};const add=copiedDay.shifts.filter(s=>{const p=data.people.find(p=>p.id===s.person);return p&&activeOn(p,date)&&(!window.flowTeam||window.flowTeam.canCreate(p.id,date,!!s.segments.length))&&!data.shifts.some(other=>other.person===s.person&&other.date===date);});return {add,skipped:copiedDay.shifts.length-add.length};}
 function dayCopyBlocked(date){if(date===copiedDay?.date)return 'Das ist der kopierte Tag';return dayCopyPlan(date).add.length||pendingActivityCopies(copiedDay?.activities,()=>date).length?'':'Alle Personen sind hier bereits eingeplant oder nicht im Team';}
-function pendingActivityCopies(activities,dateFor){return (activities||[]).filter(a=>!data.activities.some(other=>activityKey(other.date,other)===activityKey(dateFor(a),a))).map(a=>({...structuredClone(a),id:uid(),date:dateFor(a)}));}
+function pendingActivityCopies(activities,dateFor){if(window.flowTeam&&!window.flowTeam.canActivities())return [];return (activities||[]).filter(a=>!data.activities.some(other=>activityKey(other.date,other)===activityKey(dateFor(a),a))).map(a=>({...structuredClone(a),id:uid(),date:dateFor(a)}));}
 function placeDayCopy(date){if(!copiedDay)return;const blocked=dayCopyBlocked(date);if(blocked){toast(blocked+'.');return;}const {add,skipped}=dayCopyPlan(date),offset=data.shifts.filter(s=>s.date===date).length,created=add.map((source,index)=>{const s={...structuredClone(source),id:uid(),date,y:32+(offset+index)*56};s.segments.forEach(t=>t.id=uid());return s;});const activityCopies=pendingActivityCopies(copiedDay.activities,()=>date);data.activities.push(...activityCopies);data.shifts.push(...created);copyPicked=false;persist();refresh();const ids=new Set(created.map(s=>s.id));toast(`${created.length} ${created.length===1?'Schicht':'Schichten'} auf ${dayLabel(date)} übernommen${skipped?`, ${skipped} übersprungen`:''}.`,()=>{data.shifts=data.shifts.filter(s=>!ids.has(s.id));data.activities=data.activities.filter(a=>!activityCopies.some(copy=>copy.id===a.id));persist();refresh();});}
 function copyWeek(){
   const shifts=Array.from({length:7},(_,day)=>dayShifts(dateKey(addDays(week,day)))).flat();
@@ -165,7 +166,7 @@ function weekCopyPlan(){
   for(const source of copiedWeek.shifts){
     // Calendar dates preserve weekdays across daylight-saving and year changes.
     const day=(parseDate(source.date).getDay()+6)%7,date=dateKey(addDays(week,day)),p=data.people.find(p=>p.id===source.person);
-    if(p&&activeOn(p,date)&&!data.shifts.some(s=>s.person===source.person&&s.date===date))add.push({source,date});
+    if(p&&activeOn(p,date)&&(!window.flowTeam||window.flowTeam.canCreate(p.id,date,!!source.segments.length))&&!data.shifts.some(s=>s.person===source.person&&s.date===date))add.push({source,date});
   }
   return {add,skipped:copiedWeek.shifts.length-add.length};
 }
@@ -262,6 +263,7 @@ const editExtra=s=>editing===s.id&&s.segments.length?12+s.segments.length*48:0;
 const activityName=t=>t.label?.trim().replace(/\s+/g,' ')||task(t.type).name;
 const activityKey=(date,t)=>date+'|'+activityName(t).normalize('NFKC').toLocaleLowerCase('de-DE');
 function syncActivities(){
+  if(window.flowTeam)return window.flowTeam.syncActivities(data,tasks);
   data.activities ||= [];
   const used=new Set();
   data.shifts.forEach(s=>s.segments.forEach(t=>{
@@ -275,6 +277,7 @@ function syncActivities(){
   data.activities=data.activities.filter(a=>a.explicit||used.has(a.id));
 }
 function createActivity(type,date,start){
+  if(window.flowTeam&&!window.flowTeam.checkActivities())return;
   const existing=data.activities.find(a=>activityKey(a.date,a)===activityKey(date,{type}));
   if(existing){editActivity(existing.id);return existing;}
   const a={id:uid(),date,type,label:task(type).name,color:task(type).color,start:clamp(snap(start),8,23),end:clamp(snap(start),8,23)+1,explicit:true};
@@ -285,6 +288,8 @@ function assignActivity(id,person,shiftId,anchor){
   const a=data.activities.find(a=>a.id===id),p=data.people.find(p=>p.id===person);if(!a||!p)return;
   if(!activeOn(p,a.date)){toast('Diese Person ist an diesem Tag nicht im Team.');return;}
   let s=shiftId?getShift(shiftId):data.shifts.find(s=>s.person===person&&s.date===a.date);
+  if(window.flowTeam&&!window.flowTeam.checkTasks(s||{person,date:a.date,lock:'open'}))return;
+  if(window.flowTeam&&!s&&!window.flowTeam.checkTime({person,date:a.date,lock:'open'},'create'))return;
   if(s&&s.date!==a.date){toast('Aufgabe und Schicht müssen am selben Tag liegen.');return;}
   if(s?.segments.some(t=>t.activityId===id)){toast('Diese Person ist der Aufgabe bereits zugeordnet.');return;}
   const length=newShiftLength(p,a.date);
@@ -296,6 +301,7 @@ function assignActivity(id,person,shiftId,anchor){
   if(cursor<end)free.push([cursor,end]);
   const parts=free.filter(([b,e])=>e-b>=.25),outside=a.start<s.start||a.end>s.start+s.length,conflict=s.segments.some(t=>s.start+t.offset<a.end&&s.start+t.offset+t.duration>a.start);
   const apply=(ranges,extend=false)=>{
+    if(window.flowTeam&&extend&&!window.flowTeam.checkTime(s))return;
     if(extend){const start=Math.min(s.start,a.start),end=Math.max(s.start+s.length,a.end);s.segments.forEach(t=>t.offset+=s.start-start);s.start=start;s.length=end-start;}
     if(fresh){data.shifts.push(s);placeInDay(s,100000);}
     a.explicit=true;
@@ -309,6 +315,7 @@ function assignActivity(id,person,shiftId,anchor){
   const r=anchor?.getBoundingClientRect()||{left:innerWidth/2, bottom:innerHeight/2};panel.style.left=clamp(r.left,12,innerWidth-332)+'px';panel.style.top=clamp(r.bottom+8,12,innerHeight-panel.offsetHeight-12)+'px';
 }
 function changeActivityRange(a,start,end){
+  if(window.flowTeam&&!window.flowTeam.checkActivities())return false;
   if(start<8||end>24||end-start<.25)return false;
   const assignments=activityAssignments(a),delta=start-a.start;
   const changes=assignments.map(({s,t})=>({s,t,start:s.start+t.offset+delta,end:Math.abs(s.start+t.offset+t.duration-a.end)<.001?end:Math.min(end,s.start+t.offset+t.duration+delta)}));
@@ -327,6 +334,7 @@ function editActivity(id,source){
   $('#activity-form').onsubmit=e=>{e.preventDefault();const name=$('#activity-name').value.trim()||task(a.type).name;if(data.activities.some(other=>other.id!==a.id&&activityKey(other.date,other)===activityKey(a.date,{type:a.type,label:name}))){$('#activity-error').textContent='Diese Aufgabe ist für den Tag bereits vorhanden.';return;}const start=toHour($('#activity-start').value),end=toHour($('#activity-end').value);if(!Number.isFinite(start)||!Number.isFinite(end)||!changeActivityRange(a,start,end)){$('#activity-error').textContent='Bitte passende Zeiten zwischen 08:00 und 24:00 wählen.';return;}a.label=$('#activity-name').value.trim()||task(a.type).name;activityAssignments(a).forEach(({t})=>t.label=a.label);persist();refresh();closePanel();};
   document.querySelectorAll('[data-unassign]').forEach(b=>b.onclick=()=>{a.explicit=true;data.shifts.forEach(s=>s.segments=s.segments.filter(t=>t.id!==b.dataset.unassign));persist();refresh();editActivity(id);});
   $('#activity-delete').onclick=()=>{const before=structuredClone(data);data.shifts.forEach(s=>s.segments=s.segments.filter(t=>t.activityId!==id));data.activities=data.activities.filter(x=>x.id!==id);persist();refresh();closePanel();toast('Tagesaufgabe und Zuordnungen gelöscht.',()=>{data=before;persist();refresh();});};
+  window.flowTeam?.decorateActivity(a,panel);
 }
 function previewAgendaRange(agenda,a,start,end){
   const groups=dayActivityGroups(dayShifts(a.date),a.date,{id:a.id,start,end});
@@ -512,6 +520,7 @@ function previewDrop(cell,e){
   showDropPreview(cell,start,length,displayY({date:cell.dataset.date,y,id:drag.kind==='task'?e.target.closest('.shift')?.dataset.shift:null}));
 }
 function createShift(person,date,start=8,y=32){
+  if(window.flowTeam&&!window.flowTeam.checkTime({person,date,lock:'open'},'create'))return;
   const p=data.people.find(p=>p.id===person);if(!p||!activeOn(p,date)){toast('Diese Person ist an diesem Tag nicht im Team.');return;}
   const old=data.shifts.find(s=>s.person===person&&s.date===date);if(old){toast('Diese Person ist an diesem Tag bereits eingeplant.');return;}
   const length=newShiftLength(p,date);if(length>DAY_SPAN){toast('Tagesstunden einschließlich Pause passen nicht in den Zeitraum 08:00–24:00. Bitte Tagesstunden oder Pausenregel anpassen.');return;}
@@ -523,6 +532,7 @@ function findGap(s,wanted,size,ignore){
   return gaps.filter(([a,b])=>b-a>=size).map(([a,b])=>({offset:clamp(snap(wanted),a,b-size),duration:size})).sort((a,b)=>Math.abs(a.offset-wanted)-Math.abs(b.offset-wanted))[0];
 }
 function addTask(s,type,offset){
+  if(window.flowTeam&&!window.flowTeam.checkTasks(s))return;
   const t={id:uid(),type,label:type==='flex'?'Neue Aufgabe':'',offset:0,duration:s.length};
   if(s.segments.length){const gap=findGap(s,offset,1);if(gap)Object.assign(t,gap);else{const target=s.segments.find(x=>offset>=x.offset&&offset<=x.offset+x.duration)||s.segments.at(-1);if(target.duration<.5){toast('Für eine weitere Aufgabe werden mindestens 30 Minuten benötigt.');return;}t.duration=Math.min(1,target.duration-.25);if(offset<target.offset+target.duration/2){t.offset=target.offset;target.offset+=t.duration;target.duration-=t.duration;}else{target.duration-=t.duration;t.offset=target.offset+target.duration;}}}
   s.segments.push(t);editing=s.id;selected=s.id;persist();renderTimeline();if(type==='flex'){showToolkit(s.id,t.id);$('#task-label')?.select();}
@@ -562,10 +572,12 @@ function showToolkit(id,taskId){
     persist();closePanel();renderTimeline();
   };
   const r=anchor.getBoundingClientRect();panel.style.left=clamp(r.left,12,window.innerWidth-320)+'px';panel.style.top=Math.max(12,Math.min(r.bottom+12,window.innerHeight-panel.offsetHeight-12))+'px';
+  window.flowTeam?.decorateToolkit(s,t,panel);
 }
 // Pointer capture keeps dragging stable at cell boundaries and on touch screens.
 function startGesture(e){
   if(e.button!==0||copyPicked||e.target.closest('.shift-edit,.shift-copy,.task-copy')||e.target.classList.contains('task-track'))return;const el=e.currentTarget,s=getShift(el.dataset.shift),t=editing===s.id?s.segments.find(t=>t.id===e.target.closest('[data-task]')?.dataset.task):null,edge=e.target.closest('[data-edge]')?.dataset.edge;
+  if(window.flowTeam&&!(t?window.flowTeam.checkTasks(s,t):window.flowTeam.checkTime(s)))return;
   gesture={el,s,t,edge,x:e.clientX,y:e.clientY,grabY:(e.clientY-el.getBoundingClientRect().top)/zoom,positions:data.shifts.map(shift=>({id:shift.id,y:shift.y})),before:structuredClone(s),original:structuredClone(s),width:el.parentElement.getBoundingClientRect().width,moved:false,pointer:e.pointerId};el.setPointerCapture(e.pointerId);
 }
 document.addEventListener('pointermove',e=>{

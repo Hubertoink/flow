@@ -112,6 +112,7 @@ function applyImportedPlan(transfer){
   applyTheme();applyBackground();renderLegend();refresh();
 }
 function storeImportedPlan(transfer,backup=true){
+  if(window.flowTeam)return window.flowTeam.importPlan(transfer);
   endGesture(true);
   compactShifts(transfer.plan.shifts);
   const serialized=JSON.stringify(transfer.plan);
@@ -121,6 +122,7 @@ function storeImportedPlan(transfer,backup=true){
   applyImportedPlan(transfer);
 }
 function openPlanImport(){
+  if(window.flowTeam)return window.flowTeam.openImport();
   openModal(`${modalTop('Kompletten Plan importieren')}<form id="plan-import-form"><p class="modal-note">Überträgt alle Wochen, Mitarbeitenden, Aufgabenvorlagen und Einstellungen. Der Plan auf diesem Rechner wird vollständig ersetzt – nicht zusammengeführt. Die Datei wird nur lokal gelesen, nicht hochgeladen.</p><label class="full-field"><span class="field-label">Flow!-Planexport (.json)</span><input id="plan-import-file" type="file" accept=".json,application/json" required></label><div id="plan-import-preview" hidden></div><p id="plan-import-error" class="form-error" role="alert"></p><div class="form-actions"><button type="button" id="save-current-plan" class="secondary-button">Aktuellen Plan exportieren</button><button id="confirm-plan-import" class="primary-button" disabled>Plan ersetzen</button></div></form>${localStorage.getItem(PLAN_RECOVERY_KEY)?'<button type="button" id="restore-before-import" class="secondary-button">Plan vor dem letzten Import wiederherstellen</button>':''}`);
   const form=$('#plan-import-form'),fileInput=$('#plan-import-file'),error=$('#plan-import-error'),preview=$('#plan-import-preview'),button=$('#confirm-plan-import');
   let candidate,readId=0,restoring=false;
@@ -143,7 +145,8 @@ function openPlanImport(){
   };
   form.onsubmit=e=>{
     e.preventDefault();if(!candidate||!$('#accept-plan-replacement')?.checked)return;
-    try{storeImportedPlan(candidate,!restoring);$('#modal').close();toast(restoring?'Plan vor dem Import wiederhergestellt.':'Plan importiert. Die Sicherung findest du unter „Plan importieren“.');}
+    const finished=()=>{$('#modal').close();toast(window.flowTeam?'Teamplan importiert. Konten und Rechte bleiben erhalten.':restoring?'Plan vor dem Import wiederhergestellt.':'Plan importiert. Die Sicherung findest du unter „Plan importieren“.');};
+    try{const operation=storeImportedPlan(candidate,!restoring);if(window.flowTeam)Promise.resolve(operation).then(finished,showError);else finished();}
     catch(cause){showError(cause);}
   };
   $('#restore-before-import')?.addEventListener('click',()=>{

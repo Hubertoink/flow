@@ -1,0 +1,43 @@
+# Use together with compose.dev.yml; secrets come from .flow-local/config.env.
+services:
+  app:
+    image: flow-team:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: development
+      FLOW_HOST: 0.0.0.0
+      FLOW_PORT: 8080
+      FLOW_URL: http://localhost:4174
+      FLOW_AUTH_SECRET: ${FLOW_AUTH_SECRET:?Auth secret required}
+      FLOW_SETUP_TOKEN: ${FLOW_SETUP_TOKEN:?Setup token required}
+      FLOW_LOCAL_MAIL: "true"
+      DATABASE_URL: postgresql://flow:${FLOW_DB_PASSWORD:?Database password required}@database:5432/flow
+    ports:
+      - "127.0.0.1:4174:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+  backup:
+    image: flow-team-backup:local
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+    environment:
+      PGHOST: database
+      PGUSER: flow
+      PGDATABASE: flow
+      PGPASSWORD: ${FLOW_DB_PASSWORD:?Database password required}
+    volumes:
+      - flow_development_backups:/backups
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  flow_development_backups:

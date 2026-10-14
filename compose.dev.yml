@@ -1,0 +1,19 @@
+name: flow-development
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: flow
+      POSTGRES_USER: flow
+      POSTGRES_PASSWORD: ${FLOW_DB_PASSWORD:?Local database password required}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - flow_development_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flow -d flow"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  flow_development_data:

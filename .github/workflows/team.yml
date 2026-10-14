@@ -1,0 +1,66 @@
+name: Team application
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: flow
+          POSTGRES_PASSWORD: flow-ci-password
+          POSTGRES_DB: flow
+        ports: [5432:5432]
+        options: --health-cmd "pg_isready -U flow -d flow" --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://flow:flow-ci-password@127.0.0.1:5432/flow
+      FLOW_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check && npm run check:team && npm test
+      - run: mkdir -p .flow-local
+      - run: npx playwright-core install --with-deps chromium
+      - run: node team.test.mjs
+      - run: docker build -t flow-team:ci .
+      - run: docker build -f Dockerfile.backup -t flow-team-backup:ci .
+  publish:
+    needs: verify
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: flow
+            dockerfile: Dockerfile
+          - image: flow-backup
+            dockerfile: Dockerfile.backup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/hubertoink/${{ matrix.image }}:latest
+            ghcr.io/hubertoink/${{ matrix.image }}:sha-${{ github.sha }}

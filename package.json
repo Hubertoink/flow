@@ -17,7 +17,12 @@
     "test:desktop": "node desktop.test.mjs",
     "dist:win": "npm run vendor && npm run check && npm test && electron-builder --win nsis --x64 --publish never",
     "dist:linux": "npm run vendor && npm run check && npm test && electron-builder --linux AppImage --x64 --publish never && node package-linux.mjs",
-    "icons": "node generate-icons.mjs"
+    "icons": "node generate-icons.mjs",
+    "team": "node server/main.mjs",
+    "team:local": "node scripts/start-local.mjs",
+    "team:stop": "docker compose --env-file .flow-local/config.env -f compose.dev.yml -f compose.local.yml stop",
+    "test:team": "node --env-file=.flow-local/config.env team.test.mjs",
+    "check:team": "node scripts/check-team.mjs"
   },
   "overrides": {
     "exceljs": {
@@ -34,7 +39,8 @@
     "exceljs": "4.4.0",
     "html-to-image": "1.11.13",
     "jsdom": "29.1.1",
-    "lucide-static": "1.56.0"
+    "lucide-static": "1.56.0",
+    "playwright-core": "1.64.0"
   },
   "build": {
     "appId": "com.hubertoink.flow",
@@ -85,6 +91,11 @@
     }
   },
   "dependencies": {
-    "electron-updater": "6.8.9"
+    "better-auth": "1.7.7",
+    "electron-updater": "6.8.9",
+    "express": "5.3.0",
+    "nodemailer": "10.1.1",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
   }
 }

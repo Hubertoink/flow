@@ -1,0 +1,15 @@
+.git
+node_modules
+.flow-local
+.env
+.env.*
+release
+.sites
+.openai
+qa-*
+*.test.mjs
+team.browser.mjs
+desktop
+packaging
+*.tar
+*.tar.gz
