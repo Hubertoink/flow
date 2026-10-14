@@ -1,7 +1,7 @@
 {
   "name": "flow-jugendplan",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Flow! - Lokale Wochen- und Einsatzplanung",
   "author": "Hubertoink",
   "homepage": "https://github.com/Hubertoink/flow",
@@ -10,7 +10,7 @@
   "type": "module",
   "scripts": {
     "dev": "node preview.mjs",
-    "check": "node --check dist/icons.js && node --check dist/app.js && node --check dist/canvas.js && node --check dist/exports.js && node --check desktop/main.cjs && node --check desktop/preload.cjs",
+    "check": "node --check dist/icons.js && node --check dist/app.js && node --check dist/canvas.js && node --check dist/projects.js && node --check dist/exports.js && node --check desktop/main.cjs && node --check desktop/preload.cjs",
     "test": "node canvas.test.mjs && node exports.test.mjs && node packaging.test.mjs",
     "vendor": "node vendor-exports.mjs",
     "desktop": "electron .",

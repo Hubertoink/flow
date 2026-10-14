@@ -33,6 +33,9 @@ function readPlanTransfer(text){
   const settings=input.settings;
   if(settings.background!==undefined&&settings.background!==''&&!backgrounds.some(background=>background.id===settings.background))fail('Der Hintergrund ist unbekannt.');
   if((settings.weekend!==undefined&&typeof settings.weekend!=='boolean')||(settings.saturday!==undefined&&typeof settings.saturday!=='boolean')||(settings.sunday!==undefined&&typeof settings.sunday!=='boolean')||(typeof settings.weekend!=='boolean'&&(typeof settings.saturday!=='boolean'||typeof settings.sunday!=='boolean'))||(settings.theme!==undefined&&!themes.includes(settings.theme))||(settings.zoom!==undefined&&!number(settings.zoom,.5,2)))fail('Design, angezeigte Wochentage oder Zoom sind ungültig.');
+  if(settings.hoursTransition!==undefined&&!['count','fade'].includes(settings.hoursTransition))fail('Die Einstellung für den Stundenwechsel ist ungültig.');
+  for(const key of ['projectsEnabled','projectsCollapsed'])if(settings[key]!==undefined&&typeof settings[key]!=='boolean')fail('Projekteinstellungen sind ungültig.');
+  if(settings.projectHeight!==undefined&&!number(settings.projectHeight,140,480)||settings.projectWeeks!==undefined&&![6,12].includes(settings.projectWeeks))fail('Projektansicht ist ungültig.');
   const saturday=settings.saturday??settings.weekend,sunday=settings.sunday??settings.weekend;
   if(settings.breakRules!==undefined&&(!Array.isArray(settings.breakRules)||settings.breakRules.length>100))fail('Pausenregeln sind ungültig.');
   const rules=(settings.breakRules||[]).map(rule=>{
@@ -84,9 +87,22 @@ function readPlanTransfer(text){
     return {id:a.id,date:a.date,type:a.type,label:a.label,color:a.color,start:a.start,end:a.end,explicit:a.explicit};
   });
   unique(activities.map(a=>a.id),'Tagesaufgaben');
+  if(input.projects!==undefined&&(!Array.isArray(input.projects)||input.projects.length>1000))fail('Projekte sind ungültig.');
+  const phaseIds=[];
+  const projects=(input.projects||[]).map(p=>{
+    if(!object(p)||!id(p.id)||!string(p.name,80)||!p.name.trim()||!color(p.color)||!validDate(p.start)||!validDate(p.end)||p.start>p.end||projectDay(p.end)-projectDay(p.start)>=3650||!string(p.notes,2000)||!Array.isArray(p.phases)||p.phases.length<1||p.phases.length>1000)fail('Ein Projekt ist ungültig.');
+    const phases=p.phases.map((phase,i)=>{
+      if(!object(phase)||!id(phase.id)||!string(phase.name,80)||!phase.name.trim()||!validDate(phase.start)||!validDate(phase.end)||phase.start>phase.end||!string(phase.notes,2000)||!Array.isArray(phase.people)||phase.people.length>1000||phase.people.some(id=>!personIds.has(id)))fail('Eine Projektphase ist ungültig.');
+      if(i===0&&phase.start!==p.start||i>0&&projectDay(phase.start)!==projectDay(p.phases[i-1].end)+1||i===p.phases.length-1&&phase.end!==p.end)fail('Projektphasen müssen den Projektzeitraum lückenlos abdecken.');
+      unique(phase.people,'Projektverantwortliche');phaseIds.push(phase.id);return {id:phase.id,name:phase.name,start:phase.start,end:phase.end,notes:phase.notes,people:[...phase.people]};
+    });
+    return {id:p.id,name:p.name,color:p.color,start:p.start,end:p.end,notes:p.notes,phases};
+  });
+  unique(projects.map(p=>p.id),'Projekte');unique(phaseIds,'Projektphasen');
+
   shifts.forEach(s=>s.segments.forEach(t=>{if(t.activityId&&!activities.some(a=>a.id===t.activityId&&a.date===s.date))fail('Eine Aufgabenzuordnung ist ungültig.');}));
 
-  return {week:selectedWeek,plan:{version:3,people,shifts,activities,taskTypes,settings:{weekend:saturday&&sunday,saturday,sunday,breakRules:rules,...(settings.theme?{theme:settings.theme}:{}),...(settings.background!==undefined?{background:settings.background}:{}),...(settings.zoom!==undefined?{zoom:settings.zoom}:{})}}};
+  return {week:selectedWeek,plan:{version:3,people,shifts,activities,projects,taskTypes,settings:{weekend:saturday&&sunday,saturday,sunday,breakRules:rules,...Object.fromEntries(['projectsEnabled','projectsCollapsed','projectHeight','projectWeeks'].filter(key=>settings[key]!==undefined).map(key=>[key,settings[key]])),...(settings.theme?{theme:settings.theme}:{}),...(settings.hoursTransition!==undefined?{hoursTransition:settings.hoursTransition}:{}),...(settings.background!==undefined?{background:settings.background}:{}),...(settings.zoom!==undefined?{zoom:settings.zoom}:{})}}};
 }
 function applyImportedPlan(transfer){
   clearDrop();closePanel();closeWeekInfo();closeMonthPicker();

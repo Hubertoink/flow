@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 
 const html=await readFile(path.join('dist','index.html'),'utf8');
-const source=(await Promise.all(['icons.js','app.js','canvas.js','exports.js'].map(file=>readFile(path.join('dist',file),'utf8')))).join('\n');
+const source=(await Promise.all(['icons.js','app.js','canvas.js','projects.js','exports.js'].map(file=>readFile(path.join('dist',file),'utf8')))).join('\n');
 const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,d=w.document;
 w.structuredClone=structuredClone;w.Date=Date;
 w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
@@ -221,7 +221,9 @@ q('#restore-before-import').click();q('#accept-plan-replacement').click();await 
 assert.equal(q('#plan-import-file').required,true);assert.equal(q('#confirm-plan-import').textContent,'Plan ersetzen');assert.equal(q('#confirm-plan-import').disabled,true);
 q('#modal').close();w.console.error=originalConsoleError;
 w.runExportCode(`createActivity('prep',dateKey(week),10)`);
+w.runExportCode(`data.settings.hoursTransition='fade'`);
 const activityTransfer=w.readPlanTransfer(JSON.stringify(w.runExportCode('planTransfer()')));
+assert.equal(activityTransfer.plan.settings.hoursTransition,'fade');
 assert.ok(activityTransfer.plan.activities.some(a=>a.explicit&&a.type==='prep'));
 const agendaSnapshot=w.weeklyExportSnapshot(false);
 w.runExportCode(`data.activities.find(a=>a.type==='prep'&&a.explicit).label='Nach Snapshot geändert'`);
@@ -232,5 +234,9 @@ for(const expanded of [false,true]){const root=w.buildCanvasExport(agendaSnapsho
 let csvOutput;w.runExportCode(`window.originalDownload=download;download=(text,type,name)=>{window.csvOutput=text;};exportCSV();download=window.originalDownload;`);
 assert.match(w.csvOutput,/Tagesaufgabe: Nach Snapshot geändert/);assert.match(w.csvOutput,/Noch unbesetzt/);
 
+w.runExportCode(`editProject(null)`);q('#project-name').value='Langfristiges Projekt';q('#project-form').dispatchEvent(new w.Event('submit',{cancelable:true}));
+w.runExportCode(`data.settings.projectsEnabled=true;data.settings.projectWeeks=12;data.settings.projectHeight=260;addProjectPerson(data.projects[0],data.projects[0].phases[0],data.people[0].id)`);
+const projectTransfer=w.readPlanTransfer(JSON.stringify(w.runExportCode('planTransfer()')));assert.equal(projectTransfer.plan.projects.length,1);assert.equal(projectTransfer.plan.projects[0].phases[0].people.length,1);assert.equal(projectTransfer.plan.settings.projectHeight,260);
+const brokenProject=structuredClone(projectTransfer);brokenProject.plan.projects[0].phases[1].start=brokenProject.plan.projects[0].phases[0].start;assert.throws(()=>w.readPlanTransfer(JSON.stringify({format:'flow-plan',formatVersion:1,week:brokenProject.week,plan:brokenProject.plan})),/lückenlos/);
 console.log('PASS: XLSX roundtrip, net hours, PNG modes, full-plan export/import, legacy migration, validation, confirmation, storage failure and recovery.');
 w.close();

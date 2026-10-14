@@ -5,6 +5,7 @@ if(!data || !Array.isArray(data.people) || !Array.isArray(data.shifts)) data={ve
 if(Array.isArray(data.taskTypes))tasks.splice(0,tasks.length,...data.taskTypes);
 if(!tasks.some(t=>t.id==='flex'))tasks.push({id:'flex',name:'Flexible Aufgabe',color:'#b9a5eb'});
 data.settings ||= {weekend:false};
+data.projects ||= [];
 data.settings.saturday ??= data.settings.weekend===true;
 data.settings.sunday ??= data.settings.weekend===true;
 const themes=['dark','light','catppuccin'];
@@ -92,9 +93,14 @@ function showDockHours(label,target,animate=true){
   const paint=(value,soften=false)=>{
     state.value=value;const text=hours(value);if(label.textContent===text)return;
     label.textContent=text;
-    if(soften){state.fade?.cancel();state.fade=label.animate?.([{opacity:.65},{opacity:1}],{duration:100,easing:'ease-out'});}
+    if(soften){state.fade?.cancel();state.fade=label.animate?.([{opacity:.65},{opacity:1}],{duration:data.settings.hoursTransition==='fade'?180:100,easing:'ease-out'});}
   };
   if(!animate||reducedMotion||state.value===target){paint(target);return;}
+  if(data.settings.hoursTransition==='fade'){
+    const ready=performance.now()+60;
+    const frame=now=>{if(!label.isConnected){state.frame=null;return;}if(now<ready){state.frame=requestAnimationFrame(frame);return;}paint(target,true);state.frame=null;};
+    state.frame=requestAnimationFrame(frame);return;
+  }
   const from=state.value,direction=Math.sign(target-from),ticks=[];
   for(let quarter=direction>0?Math.floor(from*4)+1:Math.ceil(from*4)-1;direction>0?quarter<target*4:quarter>target*4;quarter+=direction)ticks.push(quarter/4);
   ticks.push(target);
@@ -123,7 +129,7 @@ function colorPicker(t){return `<fieldset class="task-colors"><legend>Farbe</leg
 function persist(){syncActivities();compactShifts();data.taskTypes=tasks;try{localStorage.setItem('flow-plan-v1',JSON.stringify(data));}catch{toast('Speichern fehlgeschlagen. Bitte den Plan über das Menü exportieren.');}}
 function toast(message,undo){clearTimeout(toastTimer);const el=$('#toast');el.innerHTML=`<span>${esc(message)}</span>${undo?'<button>Rückgängig</button>':''}`;el.hidden=false;if(undo)el.querySelector('button').onclick=()=>{undo();el.hidden=true;};toastTimer=setTimeout(()=>el.hidden=true,6000);}
 function isoWeek(d){const v=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));v.setUTCDate(v.getUTCDate()+3);return Math.ceil(((v-Date.UTC(v.getUTCFullYear(),0,1))/86400000+1)/7);}
-function refresh(){renderDock();renderTimeline();}
+function refresh(){renderDock();renderTimeline();window.renderProjects?.();}
 function renderDock(){
   const people=visiblePeople(); $('.dock').setAttribute('aria-label',`Mitarbeitenden-Dock, ${people.length} im Einsatz`);
   document.querySelectorAll('.token-hours').forEach(label=>{const state=dockHourAnimations.get(label);if(state?.frame)cancelAnimationFrame(state.frame);state?.fade?.cancel();});
@@ -486,7 +492,7 @@ function placeInDay(s,wanted){
 function hourAt(cell,x){const r=cell.getBoundingClientRect();return snap(8+(x-r.left)/r.width*DAY_SPAN);}
 function removePreview(cell){cell.classList.remove('drag-over','drop-blocked');cell.querySelector('.drop-preview')?.remove();cell.querySelectorAll('.drop-rejection').forEach(el=>el.remove());cell.querySelectorAll('.shift').forEach(el=>el.style.top=displayY(getShift(el.dataset.shift))+'px');}
 function dropBlocked(date){if(drag?.kind==='day-copy')return dayCopyBlocked(date);if(drag?.kind!=='person'&&drag?.kind!=='copy')return '';const p=data.people.find(p=>p.id===drag.id);if(!p||!activeOn(p,date))return 'An diesem Tag nicht im Team';if(drag.kind==='person'&&newShiftLength(p,date)>DAY_SPAN)return 'Tagesstunden einschließlich Pause passen nicht in 08:00–24:00';return data.shifts.some(s=>s.person===p.id&&s.date===date)?`${p.name} ist bereits eingeplant`:'';}
-function clearDrop(){document.querySelectorAll('.agenda-drop').forEach(el=>el.classList.remove('agenda-drop'));drag=null;clearTimeout(expandTimer);hoverDay=null;clearWeekCopyPreview();$('.task-copy-ghost')?.remove();document.querySelectorAll('.task-copy-target').forEach(el=>el.classList.remove('task-copy-target'));document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours();}
+function clearDrop(){window.clearProjectPlanPreview?.();document.querySelectorAll('.agenda-drop').forEach(el=>el.classList.remove('agenda-drop'));drag=null;clearTimeout(expandTimer);hoverDay=null;clearWeekCopyPreview();$('.task-copy-ghost')?.remove();document.querySelectorAll('.task-copy-target').forEach(el=>el.classList.remove('task-copy-target'));document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours();}
 function showDropPreview(cell,start,length,y){
   cell.insertAdjacentHTML('beforeend',`<div class="drop-preview" style="top:${y}px;left:${(start-DAY_START)/DAY_SPAN*100}%;width:${length/DAY_SPAN*100}%"><span>${fmtTime(start)}–${fmtTime(start+length)} · ${hours(length)}</span></div>`);
   const preview=cell.querySelector('.drop-preview'),label=preview.querySelector('span');
@@ -586,7 +592,7 @@ function openSettings(tab){
   if(settingsTabs.some(([id])=>id===tab))settingsTab=tab;
   const panel=(id,html)=>`<section class="settings-panel" role="tabpanel" id="settings-panel-${id}" aria-labelledby="settings-tab-${id}" tabindex="0" ${id===settingsTab?'':'hidden'}>${html}</section>`;
   openModal(`${modalTop('Einstellungen')}<div class="settings-layout"><nav class="settings-nav" role="tablist" aria-label="Einstellungsbereiche" aria-orientation="vertical">${settingsTabs.map(([id,label,ic])=>`<button type="button" role="tab" id="settings-tab-${id}" data-settings-tab="${id}" aria-controls="settings-panel-${id}" aria-selected="${id===settingsTab}" tabindex="${id===settingsTab?0:-1}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav><div class="settings-panels">${
-    panel('general',`<h3 class="settings-panel-title">Allgemein</h3><label class="settings-row" for="theme"><span>Design</span><select id="theme"><option value="dark">Dunkel</option><option value="light">Hell</option><option value="catppuccin">Catppuccin Mocha</option></select></label><label class="settings-row" for="saturday"><span>Samstag anzeigen</span><input id="saturday" type="checkbox" ${data.settings.saturday?'checked':''}></label><label class="settings-row" for="sunday"><span>Sonntag anzeigen</span><input id="sunday" type="checkbox" ${data.settings.sunday?'checked':''}></label>`)}${
+    panel('general',`<h3 class="settings-panel-title">Allgemein</h3><label class="settings-row" for="theme"><span>Design</span><select id="theme"><option value="dark">Dunkel</option><option value="light">Hell</option><option value="catppuccin">Catppuccin Mocha</option></select></label><label class="settings-row" for="projects-enabled"><span>Projektübersicht anzeigen</span><input id="projects-enabled" type="checkbox" ${data.settings.projectsEnabled!==false?'checked':''}></label><label class="settings-row" for="hours-transition"><span>Stundenwechsel</span><select id="hours-transition" aria-describedby="hours-transition-note"><option value="count">Hoch- und herunterzählen</option><option value="fade">Sanft überblenden</option></select></label><p id="hours-transition-note" class="modal-note">Anzeige der Tagesstunden in den Mitarbeitenden-Tokens beim Wechsel zwischen Tagen.</p><label class="settings-row" for="saturday"><span>Samstag anzeigen</span><input id="saturday" type="checkbox" ${data.settings.saturday?'checked':''}></label><label class="settings-row" for="sunday"><span>Sonntag anzeigen</span><input id="sunday" type="checkbox" ${data.settings.sunday?'checked':''}></label>`)}${
     panel('breaks','')}${
     panel('people',`<div class="settings-heading"><h3>Mitarbeitende</h3><button id="new-person" class="subtle-button">${icon('plus')} Hinzufügen</button></div><div class="people-settings">${data.people.map(person=>`<button class="person-setting" data-edit-person="${person.id}"><i style="background:${person.color}"></i><span><strong>${esc(person.name)}</strong><small>${person.from?parseDate(person.from).toLocaleDateString('de-DE'):'Ohne Eintrittsdatum'}${person.until?' – '+parseDate(person.until).toLocaleDateString('de-DE'):' · unbefristet'}</small></span><b class="person-weekly-hours">${hours(person.weeklyHours??weekHours(person))}<small>pro Woche</small></b>${icon('edit')}</button>`).join('')}</div><p class="modal-note">Ein- und Austrittsdatum steuern die Sichtbarkeit im Plan. Frühere Schichten bleiben erhalten.</p>`)}${
     panel('presets',`<div class="settings-heading"><h3>Aufgabenvorlagen</h3><button id="new-preset" class="subtle-button">${icon('plus')} Hinzufügen</button></div>${tasks.filter(t=>t.id!=='flex'&&!t.hidden).map(t=>`<button class="person-setting" data-preset="${t.id}"><i style="background:${t.color}"></i><span>${esc(t.name)}</span>${icon('edit')}</button>`).join('')}`)}${
@@ -615,6 +621,9 @@ function openSettings(tab){
     data.settings.breakRules=rules;persist();refresh();$('#break-error').textContent='';toast('Pausenregel gespeichert. Ist-Stunden wurden neu berechnet.');
   };
   $('#theme').value=document.documentElement.dataset.theme;
+  $('#projects-enabled').onchange=e=>{data.settings.projectsEnabled=e.target.checked;persist();window.renderProjects?.();};
+  $('#hours-transition').value=data.settings.hoursTransition==='fade'?'fade':'count';
+  $('#hours-transition').onchange=e=>{data.settings.hoursTransition=e.target.value;document.querySelectorAll('.token-hours').forEach(label=>{const state=dockHourAnimations.get(label);if(state)showDockHours(label,state.target,false);});persist();};
   $('#settings-panel-general').insertAdjacentHTML('beforeend',`<fieldset class="background-options"><legend>Hintergrund</legend><p class="modal-note">Außerhalb des Canvas sichtbar, im Canvas weichgezeichnet und kontrastärmer. Druck und Bildexport bleiben ohne Hintergrundbild.</p><div class="background-grid">${[{id:'',name:'Kein Hintergrund'},...backgrounds].map(background=>`<label><input type="radio" name="background" value="${background.id}" ${background.id===(data.settings.background||'')?'checked':''}>${background.file?`<img src="assets/${background.file}" alt="" loading="lazy">`:'<span class="background-none" aria-hidden="true"></span>'}<span>${background.name}</span></label>`).join('')}</div></fieldset>`);
   document.querySelectorAll('[name=background]').forEach(input=>input.onchange=()=>{
     data.settings.background=input.value;applyBackground();persist();
@@ -737,7 +746,7 @@ $('#detail').setAttribute('aria-label','Schicht-Toolkit');
 function renderLegend(){$('#legend').innerHTML=tasks.filter(t=>!t.hidden).map(t=>`<button draggable="true" class="legend-item" data-type="${t.id}"><i class="legend-dot" style="--segment:${t.color}"></i>${esc(t.name)}</button>`).join('');document.querySelectorAll('[data-type]').forEach(el=>{el.ondragstart=e=>{drag={kind:'task',id:el.dataset.type};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';};el.ondragend=clearDrop;el.onclick=()=>{const s=getShift(selected||editing);if(s)addTask(s,el.dataset.type,0);else toast('Aufgabe in eine Schicht ziehen oder zuerst eine Schicht auswählen.');};});}
 $('#more').onclick=()=>{const hidden=!$('#menu').hidden;$('#menu').hidden=hidden;$('#more').setAttribute('aria-expanded',String(!hidden));};
 $('#menu').querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{closeMenu();({excel:()=>openExport('excel'),image:()=>openExport('image'),export:exportCSV,backup:()=>exportPlan(),import:()=>openPlanImport(),print:()=>window.print(),settings:()=>openSettings()})[b.dataset.action]();});
-document.addEventListener('click',e=>{if(!e.target.closest('.menu-wrap'))closeMenu();if(!e.target.closest('#week-info,#week-info-toggle'))closeWeekInfo();if(!e.target.closest('#detail,.shift,.legend-item,.day-agenda'))closePanel();});
+document.addEventListener('click',e=>{if(!e.target.closest('.menu-wrap'))closeMenu();if(!e.target.closest('#week-info,#week-info-toggle'))closeWeekInfo();if(!e.composedPath().some(node=>node.matches?.('#detail,.shift,.legend-item,.day-agenda,#projects')))closePanel();});
 document.addEventListener('keydown',event=>{if($('#modal').open){if(event.key==='Escape'){event.preventDefault();$('#modal-close').click();}return;}if(event.key==='Escape'){endGesture(true);editing=null;copyPicked=false;closeWeekInfo();picked=null;clearDrop();closePanel();closeMenu();refresh();}});
 const surface=document.createElement('div');surface.className='canvas-surface';$('#grid-scroll').append(surface);surface.append($('#timeline'));
 $('.board').insertAdjacentHTML('beforeend',`<div class="canvas-zoom" role="group" aria-label="Canvas-Zoom"><button id="zoom-out" aria-label="Herauszoomen">${icon('minus')}</button><button id="zoom-value" aria-label="Zoom auf 100 Prozent zurücksetzen">100%</button><button id="zoom-in" aria-label="Hineinzoomen">${icon('plus')}</button></div>`);

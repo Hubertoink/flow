@@ -126,3 +126,9 @@ dialog.settings-dialog{width:760px;padding:24px 26px 26px}
   .settings-nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:0 0 10px}
   .settings-nav button{width:auto;flex:none;white-space:nowrap}
 }
+
+/* A modal must never inherit a draggable desktop title-bar hit area. */
+.desktop:has(dialog[open]) .topbar{app-region:no-drag;-webkit-app-region:no-drag}
+.desktop dialog,.desktop dialog *,.desktop #detail,.desktop #detail *{app-region:no-drag;-webkit-app-region:no-drag}
+.desktop dialog{max-height:calc(100dvh - 96px)}
+.desktop dialog .modal-top{position:sticky;top:0;z-index:3;background:var(--surface)}

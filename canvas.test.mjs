@@ -2,7 +2,7 @@ import {JSDOM} from 'jsdom';
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const html=await readFile('dist/index.html','utf8');
-const source=await readFile('dist/icons.js','utf8')+'\n'+await readFile('dist/app.js','utf8')+'\n'+await readFile('dist/canvas.js','utf8');
+const source=await readFile('dist/icons.js','utf8')+'\n'+await readFile('dist/app.js','utf8')+'\n'+await readFile('dist/canvas.js','utf8')+'\n'+await readFile('dist/projects.js','utf8');
 function boot(saved,setup){const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;w.structuredClone=structuredClone;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.HTMLElement.prototype.setPointerCapture=function(){};if(saved)w.localStorage.setItem('flow-plan-v1',JSON.stringify(saved));setup?.(w);w.eval(source+'\nwindow.runCanvasCode=code=>eval(code);');return dom;}
 const dom=boot(),w=dom.window,d=w.document,q=s=>d.querySelector(s),all=s=>[...d.querySelectorAll(s)],saved=()=>JSON.parse(w.localStorage.getItem('flow-plan-v1')),submit=s=>q(s).dispatchEvent(new w.Event('submit',{cancelable:true}));
 {
@@ -642,6 +642,18 @@ assert.equal(bw.document.documentElement.style.getPropertyValue('--background-im
   run('renderDock()');assert.equal(frames.has(pendingFrame),false);
   assert.equal(aw.localStorage.getItem('flow-plan-v1'),before);
   assert.ok(aq('.token time').dataset.dayHours.includes('7,75 h'));
+  run(`openSettings('general')`);assert.equal(aq('#hours-transition').value,'count');
+  aq('#hours-transition').value='fade';aq('#hours-transition').dispatchEvent(new aw.Event('change'));
+  assert.equal(JSON.parse(aw.localStorage.getItem('flow-plan-v1')).settings.hoursTransition,'fade');
+  run('updateDockHours(dateKey(week),false)');
+  const fades=[];aq('.token-hours').animate=(keys,options)=>{fades.push({keys,options});return {cancel(){}};};
+  run('updateDockHours(dateKey(addDays(week,1)))');advance(32);assert.equal(value(),8);
+  advance(32);assert.equal(value(),6.25);assert.equal(fades.length,1);assert.equal(fades[0].options.duration,180);
+  assert.equal(run('dockHourAnimations.get(document.querySelector(".token-hours")).frame'),null);
+  run('updateDockHours(dateKey(week))');advance(16);run('updateDockHours(dateKey(addDays(week,2)))');advance(64);assert.equal(value(),10.5);
+  reduced=true;run('updateDockHours(dateKey(week))');assert.equal(value(),8);assert.equal(fades.length,2);
+  const reload=boot(JSON.parse(aw.localStorage.getItem('flow-plan-v1')));reload.window.runCanvasCode(`openSettings('general')`);assert.equal(reload.window.document.querySelector('#hours-transition').value,'fade');reload.window.close();
+
   aw.close();
 }
 console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/backgrounds/persistence, settings tabs, updates, weekly schedules, animated hours/retargeting/reduced motion, copies, whole-week drag/drop/undo, DST/year mapping, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();
@@ -730,4 +742,72 @@ console.log('PASS: canvas interactions, boundary resizing, apply/validation, the
   assert.equal(run('data.activities.find(a=>a.id===data.shifts[1].segments[0].activityId).date'),run('data.shifts[1].date'));
   assert.equal(run(`data.activities.filter(a=>a.type==='admin'&&a.explicit).length`),2);
   ad.window.close();
+}
+
+// Project planning remains separate from shifts and supports persisted phase ownership.
+{
+ const ad=boot(),aw=ad.window,run=code=>aw.runCanvasCode(code),q=s=>aw.document.querySelector(s);
+ const submit=id=>q(id).dispatchEvent(new aw.Event('submit',{bubbles:true,cancelable:true}));
+ run(`data.projects=[];renderProjects();editProject(null);`);
+ q('#project-name').value='Medienwerkstatt <Team>';q('#project-start').value='2026-10-19';q('#project-end').value='2026-11-29';submit('#project-form');
+ assert.equal(run('data.projects.length'),1);assert.equal(run('data.projects[0].phases.length'),3);assert.equal(q('#detail').hidden,true);assert.equal(q('.project-name').textContent,'Medienwerkstatt <Team>');assert.equal(q('.project-name team'),null);
+ const shiftCount=run('data.shifts.length');
+ run(`week=parseDate('2026-10-19');refresh();drag={kind:'person',id:data.people[0].id}`);
+ q('.project-phase').ondrop({preventDefault(){}});
+ assert.equal(run('data.projects[0].phases[0].people.length'),1);assert.equal(run('data.shifts.length'),shiftCount);
+ run(`drag={kind:'person',id:data.people[0].id}`);q('.project-phase').ondrop({preventDefault(){}});assert.equal(run('data.projects[0].phases[0].people.length'),1);
+ q('.project-phase').click();q('#phase-split').click();assert.equal(run('data.projects[0].phases.length'),4);
+ q('#phase-name').value='Konzeption';submit('#phase-form');assert.equal(run('data.projects[0].phases[1].name'),'Konzeption');
+ run(`editProjectPhase(data.projects[0].id,data.projects[0].phases[0].id)`);q('#phase-plan').click();assert.equal(q('#detail').hidden,false);assert.ok(q('#phase-plan-day'));submit('#phase-plan-form');
+ assert.equal(run(`data.activities.filter(a=>a.label.includes('Medienwerkstatt')).length`),1);assert.equal(run('data.shifts.length'),shiftCount);
+ run(`editProjectPhase(data.projects[0].id,data.projects[0].phases[0].id)`);q('#phase-plan').click();assert.equal(q('#detail').hidden,false);assert.ok(q('#phase-plan-day'));submit('#phase-plan-form');assert.match(q('#phase-plan-error').textContent,/bereits/);
+ run(`closePanel();renderProjects()`);
+ const handle=q('.project-phase-edge');q('.project-track').getBoundingClientRect=()=>({width:420});
+ const oldEnd=run('data.projects[0].phases[0].end');handle.onpointerdown({button:0,preventDefault(){},stopPropagation(){},clientX:0,pointerId:1});handle.onpointermove({clientX:20});handle.onpointerup({type:'pointerup'});
+ assert.equal(run('projectDay(data.projects[0].phases[0].end)'),run(`projectDay('${oldEnd}')+2`));assert.equal(run('projectDay(data.projects[0].phases[1].start)'),run('projectDay(data.projects[0].phases[0].end)+1'));
+ q('#project-toggle').click();assert.equal(q('#projects').classList.contains('collapsed'),true);q('#project-toggle').click();
+ q('#project-resize').onkeydown({key:'ArrowUp',preventDefault(){}});assert.equal(run('data.settings.projectHeight'),230);
+ q('#project-scale').value='12';q('#project-scale').dispatchEvent(new aw.Event('change'));assert.equal(q('.project-axis>div').children.length,12);
+ run(`openSettings('general')`);q('#projects-enabled').checked=false;q('#projects-enabled').dispatchEvent(new aw.Event('change'));assert.equal(q('#projects').hidden,true);
+ const snapshot=JSON.parse(aw.localStorage.getItem('flow-plan-v1')),reload=boot(snapshot);assert.equal(reload.window.document.querySelector('#projects').hidden,true);assert.deepEqual(JSON.parse(reload.window.localStorage.getItem('flow-plan-v1')),snapshot);reload.window.close();
+ aw.close();
+}
+
+// Project focus edits are transactional; the overview centers today and supports the palette.
+{
+ const ad=boot(),aw=ad.window,run=c=>aw.runCanvasCode(c),q=s=>aw.document.querySelector(s),submit=id=>q(id).dispatchEvent(new aw.Event('submit',{cancelable:true}));
+ run(`data.projects=[];editProject(null)`);assert.equal(q('#project-form').querySelectorAll('.color-swatch').length,20);
+ q('#project-name').value='Halloween';q('#project-form [data-color="#c482b9"]').click();submit('#project-form');assert.equal(run('data.projects[0].color'),'#c482b9');
+ run(`data.settings.projectWeeks=12;projectOffset=0;renderProjects()`);
+ assert.ok(run('projectDay(todayKey())-projectWindow().first>=42'));assert.ok(run('projectWindow().last-projectDay(todayKey())>=35'));assert.ok(q('.project-today'));
+ run(`projectOffset=-12;renderProjects()`);assert.equal(q('.project-today'),null);
+ run(`editProject(data.projects[0].id)`);q('#project-phases').click();assert.equal(q('#project-focus').open,true);assert.equal(q('#modal').open,false);
+ const before=aw.localStorage.getItem('flow-plan-v1');q('#focus-add').click();assert.equal(run('projectFocus.draft.phases.length'),4);assert.equal(run('data.projects[0].phases.length'),3);
+ q('#focus-name').value='Workshop';q('#focus-name').dispatchEvent(new aw.Event('change'));q('#focus-right').click();assert.equal(run('projectFocus.draft.phases[2].name'),'Workshop');
+ q('#focus-cancel').click();assert.equal(aw.localStorage.getItem('flow-plan-v1'),before);assert.equal(run('data.projects[0].phases.length'),3);
+ run(`openProjectFocus(data.projects[0].id)`);q('#focus-add').click();q('#focus-name').value='Konzept';q('#focus-name').dispatchEvent(new aw.Event('change'));
+ q('.focus-timeline').getBoundingClientRect=()=>({left:0,width:420});const handle=q('.focus-edge'),oldEnd=run('projectFocus.draft.phases[0].end');handle.onpointerdown({button:0,preventDefault(){},stopPropagation(){},clientX:0,pointerId:3});handle.onpointermove({clientX:10});handle.onpointerup({type:'pointerup'});
+ assert.equal(run('projectDay(projectFocus.draft.phases[0].end)'),run(`projectDay('${oldEnd}')+1`));
+ submit('#focus-phase-form');assert.equal(q('#project-focus').open,false);assert.equal(run('data.projects[0].phases.length'),4);assert.equal(run('data.projects[0].phases[1].name'),'Konzept');
+ const saved=aw.localStorage.getItem('flow-plan-v1');run(`openProjectFocus(data.projects[0].id)`);q('#focus-add').click();aw.document.dispatchEvent(new aw.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert.equal(q('#project-focus').open,false);assert.equal(aw.localStorage.getItem('flow-plan-v1'),saved);
+ aw.close();
+}
+
+// Drag a project phase into a day or the week header without creating shifts.
+{
+ const ad=boot(),aw=ad.window,run=c=>aw.runCanvasCode(c),q=s=>aw.document.querySelector(s);
+ run(`data.projects=[];data.activities=[];data.shifts=[];editProject(null)`);q('#project-name').value='Drag-Projekt';q('#project-form').dispatchEvent(new aw.Event('submit',{cancelable:true}));
+ const transfer={setData(){},effectAllowed:'',dropEffect:''};
+ const startDrag=()=>{const phase=q('.project-phase');phase.ondragstart({target:phase,dataTransfer:transfer});};
+ const fire=(target,type,x=600)=>{const e=new aw.Event(type,{bubbles:true,cancelable:true});Object.defineProperties(e,{dataTransfer:{value:transfer},clientX:{value:x}});target.dispatchEvent(e);};
+ run(`expandDay(dateKey(addDays(week,1)))`);
+ const column=aw.document.querySelectorAll('.day-column')[1];column.getBoundingClientRect=()=>({left:0,width:1600});
+ startDrag();fire(column.querySelector('.day-cell'),'dragover');assert.ok(q('.project-plan-preview'));assert.equal(transfer.dropEffect,'copy');
+ fire(column.querySelector('.day-cell'),'drop');assert.equal(run('data.activities.length'),1);assert.equal(run('data.activities[0].start'),14);assert.equal(run('data.activities[0].end'),16);assert.equal(run('data.shifts.length'),0);assert.equal(q('.project-plan-preview'),null);
+ startDrag();fire(aw.document.querySelectorAll('.day-head')[1],'dragover');assert.equal(transfer.dropEffect,'none');fire(aw.document.querySelectorAll('.day-head')[1],'drop');assert.equal(run('data.activities.length'),1);
+ startDrag();fire(q('#week-number'),'drop');assert.equal(q('#detail').hidden,false);assert.equal(aw.document.querySelectorAll('[name=project-plan-date]:checked').length,4);
+ q('[name=project-plan-date]:checked').checked=false;q('#project-week-start').value='11:00';q('#project-week-end').value='13:00';q('#project-week-plan').dispatchEvent(new aw.Event('submit',{cancelable:true}));assert.equal(run('data.activities.length'),4);assert.equal(run('data.shifts.length'),0);
+ run(`changeWeek(35);drag={kind:'project-phase',projectId:data.projects[0].id,phaseId:data.projects[0].phases[0].id}`);fire(q('.day-head'),'dragover');assert.equal(transfer.dropEffect,'none');fire(q('.day-head'),'drop');assert.equal(run('data.activities.length'),4);
+ run('clearDrop()');assert.equal(q('.project-plan-preview'),null);assert.equal(aw.document.body.classList.contains('planning-project-phase'),false);
+ aw.close();
 }
