@@ -36,11 +36,15 @@ const {app}=require('electron');
         const dockBounds=()=>[...document.querySelectorAll('.token')].map(el=>{const r=el.getBoundingClientRect(),t=el.querySelector('time').getBoundingClientRect();return [r.left,r.top,r.width,t.width];});
         const stableBounds=JSON.stringify(dockBounds());
         for(let day=0;day<7;day++){
-          updateDockHours(dateKey(addDays(week,day)));await settle();
-          if(JSON.stringify(dockBounds())!==stableBounds)throw new Error('Employee pills moved when showing hours for weekday '+day+': '+stableBounds+' -> '+JSON.stringify(dockBounds()));
-          const label=document.querySelector('.token-hours');
-          if(label.textContent!==hours(data.people[0].weekdayHours[day]))throw new Error('Dynamic employee hours did not update');
-          if(label.getBoundingClientRect().width>label.parentElement.getBoundingClientRect().width+.01)throw new Error('Employee hours exceed their reserved width');
+          const label=document.querySelector('.token-hours');updateDockHours(dateKey(addDays(week,day)));
+          do{
+            await settle();
+            if(JSON.stringify(dockBounds())!==stableBounds)throw new Error('Employee pills moved while counting hours for weekday '+day+': '+stableBounds+' -> '+JSON.stringify(dockBounds()));
+            for(const visible of document.querySelectorAll('.token-hours')){
+              if(visible.getBoundingClientRect().width>visible.parentElement.getBoundingClientRect().width+.01)throw new Error('Animated employee hours exceed their reserved width');
+            }
+          }while([...document.querySelectorAll('.token-hours')].some(el=>dockHourAnimations.get(el)?.frame));
+          if(label.textContent!==hours(data.people[0].weekdayHours[day]))throw new Error('Dynamic employee hours did not update for day '+day+': '+label.textContent+' / '+JSON.stringify(dockHourAnimations.get(label)));
         }
         if(document.querySelectorAll('.token time')[1].getBoundingClientRect().width>=document.querySelector('.token time').getBoundingClientRect().width)throw new Error('Pill widths should follow each individual work schedule');
         data.people.forEach((p,i)=>p.weekdayHours=originalDayHours[i]);refresh();await settle();

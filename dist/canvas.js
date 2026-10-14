@@ -78,9 +78,33 @@ function attendanceHours(net,rules=breakRules()){
 }
 const dockDate=()=>focusDate||(todayKey()>=dateKey(week)&&todayKey()<=dateKey(addDays(week,6))?todayKey():dateKey(week));
 const newShiftLength=(person,date)=>weekdayHours(person,date)===0?3:attendanceHours(weekdayHours(person,date));
-function updateDockHours(date=dockDate()){
+const dockHourAnimations=new WeakMap();
+function dockHoursRange(person){
+  const first=Math.ceil(Math.min(...person.weekdayHours)*4),last=Math.floor(Math.max(...person.weekdayHours)*4);
+  return [...new Set([...person.weekdayHours,...Array.from({length:Math.max(0,last-first+1)},(_,i)=>(first+i)/4)].map(hours))].join('\n');
+}
+function showDockHours(label,target,animate=true){
+  const previous=dockHourAnimations.get(label),reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if(animate&&!reducedMotion&&previous?.target===target)return;
+  if(previous?.frame)cancelAnimationFrame(previous.frame);
+  const state={value:previous?.value??target,target,frame:null};dockHourAnimations.set(label,state);
+  const paint=value=>{state.value=value;label.textContent=hours(value);};
+  if(!animate||reducedMotion||state.value===target){paint(target);return;}
+  const from=state.value,direction=Math.sign(target-from),ticks=[];
+  for(let quarter=direction>0?Math.floor(from*4)+1:Math.ceil(from*4)-1;direction>0?quarter<target*4:quarter>target*4;quarter+=direction)ticks.push(quarter/4);
+  ticks.push(target);
+  const steps=ticks.length,duration=clamp(steps*55,180,700),started=performance.now();
+  const frame=now=>{
+    if(!label.isConnected){state.frame=null;return;}
+    const progress=clamp((now-started)/duration,0,1),step=Math.floor((1-(1-progress)**2)*steps);
+    paint(step===0?from:ticks[step-1]);
+    state.frame=progress<1?requestAnimationFrame(frame):null;
+  };
+  state.frame=requestAnimationFrame(frame);
+}
+function updateDockHours(date=dockDate(),animate=true){
   const day=weekdays[(parseDate(date).getDay()+6)%7];
-  document.querySelectorAll('.token').forEach(token=>{const person=data.people.find(person=>person.id===token.dataset.person),amount=weekdayHours(person,date),length=newShiftLength(person,date);token.querySelector('.token-hours').textContent=hours(amount);token.classList.toggle('off-day',amount===0);token.title=amount===0?`${day}: 0 h Soll · neue Schicht mit ${hours(length)} Anwesenheit`:`${day}: ${hours(amount)} netto · ${hours(length)} Anwesenheit inkl. Pause`;token.setAttribute('aria-label',`${person.name}, ${day}, ${hours(amount)}${amount===0?`, neue Schicht ${hours(length)}`:''}, einplanen`);});
+  document.querySelectorAll('.token').forEach(token=>{const person=data.people.find(person=>person.id===token.dataset.person),amount=weekdayHours(person,date),length=newShiftLength(person,date);showDockHours(token.querySelector('.token-hours'),amount,animate);token.classList.toggle('off-day',amount===0);token.title=amount===0?`${day}: 0 h Soll · neue Schicht mit ${hours(length)} Anwesenheit`:`${day}: ${hours(amount)} netto · ${hours(length)} Anwesenheit inkl. Pause`;token.setAttribute('aria-label',`${person.name}, ${day}, ${hours(amount)}${amount===0?`, neue Schicht ${hours(length)}`:''}, einplanen`);});
 }
 const taskPalette=['#c482b9','#dba8c4','#e6a6ae','#e8b39d','#e6b078','#e6c58b','#dfd498','#c5cf9b','#a9c49a','#8cbea7','#8dbfb9','#91c5ce','#85b9e2','#9aafe0','#aaa4dd','#b9a5eb','#c4b1d9','#bdadb1','#adbcc7','#c5cdd7'];
 const taskColor=t=>/^#[0-9a-f]{6}$/i.test(t.color||'')?t.color:task(t.type).color;
@@ -96,13 +120,14 @@ function isoWeek(d){const v=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.get
 function refresh(){renderDock();renderTimeline();}
 function renderDock(){
   const people=visiblePeople(); $('.dock').setAttribute('aria-label',`Mitarbeitenden-Dock, ${people.length} im Einsatz`);
-  $('#tokens').innerHTML=people.map(p=>`<button class="token ${picked===p.id?'selected':''}" draggable="true" data-person="${esc(p.id)}" style="--person:${p.color}" aria-label="${esc(p.name)}, ${hours(p.hours)}, einplanen"><span class="dot"></span><strong>${esc(p.name)}</strong><time data-day-hours="${esc(p.weekdayHours.map(hours).join('\n'))}"><span class="token-hours">${hours(p.hours)}</span></time></button>`).join('');
+  document.querySelectorAll('.token-hours').forEach(label=>{const state=dockHourAnimations.get(label);if(state?.frame)cancelAnimationFrame(state.frame);});
+  $('#tokens').innerHTML=people.map(p=>`<button class="token ${picked===p.id?'selected':''}" draggable="true" data-person="${esc(p.id)}" style="--person:${p.color}" aria-label="${esc(p.name)}, ${hours(p.hours)}, einplanen"><span class="dot"></span><strong>${esc(p.name)}</strong><time data-day-hours="${esc(dockHoursRange(p))}"><span class="token-hours">${hours(p.hours)}</span></time></button>`).join('');
   document.querySelectorAll('.token').forEach(el=>{
     el.ondragstart=e=>{drag={kind:'person',id:el.dataset.person};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';closePanel();};
     el.ondragend=clearDrop;
     el.onclick=()=>{copyPicked=false;picked=picked===el.dataset.person?null:el.dataset.person;refresh();};
   });
-  updateDockHours();renderCopyTray();
+  updateDockHours(dockDate(),false);renderCopyTray();
 }
 function copyShift(id){const s=getShift(id);if(!s)return;copiedShift=structuredClone(s);copiedTask=null;copiedDay=null;copiedWeek=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}
 function copyTask(id,taskId){const t=getShift(id)?.segments.find(t=>t.id===taskId);if(!t)return;copiedTask=structuredClone(t);copiedShift=null;copiedDay=null;copiedWeek=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}

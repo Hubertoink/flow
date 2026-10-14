@@ -26,12 +26,16 @@ Die bisherige Einstellung „Wochenende anzeigen“ wird in beide Tagesoptionen
 überführt.
 
 Auch an Tagen mit 0 Sollstunden können Mitarbeitende eingeplant werden.
-Die Mitarbeitenden-Pills reservieren jeweils Platz für ihre längste
-Tagesstundenanzeige aus Montag bis Sonntag. Beim Überfahren der Tage wechseln
-die Stunden, während die Pill-Breiten und die Positionen der Nachbarn stabil bleiben.
 Neue Schichten starten dort mit 3 Stunden Anwesenheit und können danach wie
 gewohnt angepasst werden. Tages- und Wochensoll bleiben unverändert; Pausen
 werden nach den eingestellten Regeln von den Iststunden abgezogen.
+
+Beim Überfahren der Tage zählen die Stunden in den Mitarbeitenden-Pills sanft
+in Viertelstunden hoch oder herunter, etwa **8 → 7,75 → 7,5 → … → 6,25 h**.
+Schnelle Tageswechsel setzen am gerade sichtbaren Wert an. Jede Pill reserviert
+Platz für ihre längste Anzeige einschließlich der Zwischenwerte, sodass Breiten
+und Nachbarpositionen stabil bleiben. Bei reduzierter Bewegung wechseln die
+Werte sofort; Arbeitszeiten und Sollstunden werden durch die Animation nicht geändert.
 
 Schichten zeigen hinter der Uhrzeit ihre Netto-Arbeitszeit in Klammern,
 zum Beispiel **10:00–18:30 (8 h)** bei 30 Minuten Pause. Die Anzeige aktualisiert

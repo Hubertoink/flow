@@ -235,7 +235,7 @@ tq('[data-shift="task-target"] .shift-copy').click();assert.ok(tq('#copy-badge .
 const taskSnapshot=ts(),taskReload=boot(taskSnapshot);assert.deepEqual(JSON.parse(taskReload.window.localStorage.getItem('flow-plan-v1')),taskSnapshot);taskReload.window.close();tw.close();
 const legacy={version:1,people:[{id:'p',name:'Alt',start:9,end:16,color:'#ad95df'}],settings:{weekend:false},shifts:[{id:'s',person:'p',date:'2026-10-13',start:9,segments:[{type:'open',duration:7,label:'Behalten'}]}]};const old=boot(legacy),migrated=JSON.parse(old.window.localStorage.getItem('flow-plan-v1'));assert.equal(migrated.people[0].hours,7);assert.equal(migrated.shifts[0].segments[0].label,'Behalten');assert.equal(migrated.shifts[0].length,7);assert.equal(migrated.shifts[0].y,32);const od=old.window.document;od.querySelector('.shift').dispatchEvent(new old.window.MouseEvent('contextmenu',{bubbles:true,cancelable:true}));od.querySelector('#tool-start').value='17:00';od.querySelector('#tool-end').value='24:00';od.querySelector('#toolkit-form').dispatchEvent(new old.window.Event('submit',{cancelable:true}));assert.equal(JSON.parse(old.window.localStorage.getItem('flow-plan-v1')).shifts[0].start,17);assert.match(od.querySelector('.shift-time').textContent,/24:00/);od.querySelector('#tool-end').value='24:15';od.querySelector('#toolkit-form').dispatchEvent(new old.window.Event('submit',{cancelable:true}));assert.match(od.querySelector('#tool-error').textContent,/24:00/);old.window.close();
 const scheduleFixture=structuredClone(snapshot);scheduleFixture.people.forEach(person=>{person.from='';person.until='';});scheduleFixture.shifts=[];
-const scheduleDom=boot(scheduleFixture),scheduleWindow=scheduleDom.window,scheduleDocument=scheduleWindow.document,scheduleQuery=selector=>scheduleDocument.querySelector(selector),scheduleSaved=()=>JSON.parse(scheduleWindow.localStorage.getItem('flow-plan-v1'));
+const scheduleDom=boot(scheduleFixture,w=>{w.matchMedia=()=>({matches:true});}),scheduleWindow=scheduleDom.window,scheduleDocument=scheduleWindow.document,scheduleQuery=selector=>scheduleDocument.querySelector(selector),scheduleSaved=()=>JSON.parse(scheduleWindow.localStorage.getItem('flow-plan-v1'));
 scheduleQuery('#settings-button').click();assert.match(scheduleQuery('[data-edit-person="niko"] .person-weekly-hours').textContent,/40 h.*pro Woche/);
 scheduleQuery('#modal').scrollTop=180;scheduleQuery('[data-edit-person="niko"]').click();scheduleQuery('#modal-close').click();assert.equal(scheduleQuery('#modal').open,true);assert.equal(scheduleQuery('#modal').scrollTop,180);assert.equal(scheduleQuery('h2').textContent,'Einstellungen');
 scheduleQuery('[data-edit-person="niko"]').click();[8,0,8,8,7,0,0].forEach((value,index)=>{const input=scheduleQuery(`[name="weekday-${index}"]`);input.value=value;input.dispatchEvent(new scheduleWindow.Event('input'));});assert.equal(scheduleQuery('[name="weeklyHours"]').value,'31');assert.equal(scheduleQuery('#schedule-total').textContent,'31 h');scheduleQuery('#person-form').dispatchEvent(new scheduleWindow.Event('submit',{cancelable:true}));assert.equal(scheduleQuery('#modal').open,true);assert.equal(scheduleQuery('h2').textContent,'Einstellungen');assert.match(scheduleQuery('[data-edit-person="niko"] .person-weekly-hours').textContent,/31 h/);
@@ -547,4 +547,45 @@ assert.equal(bw.document.documentElement.style.getPropertyValue('--background-im
   wq('#week-number').click();assert.equal(run('copiedTask'),null);assert.equal(run('copiedShift'),null);assert.equal(run('copiedDay'),null);
   ww.close();
 }
-console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/backgrounds/persistence, settings tabs, updates, weekly schedules, copies, whole-week drag/drop/undo, DST/year mapping, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();
+{
+  let now=0,nextFrame=0,reduced=false;const frames=new Map();
+  const ad=boot(undefined,aw=>{
+    aw.performance.now=()=>now;
+    aw.requestAnimationFrame=callback=>{const id=++nextFrame;frames.set(id,callback);return id;};
+    aw.cancelAnimationFrame=id=>frames.delete(id);
+    aw.matchMedia=query=>({matches:query==='(prefers-reduced-motion: reduce)'&&reduced});
+  }),aw=ad.window,aq=s=>aw.document.querySelector(s),run=code=>aw.runCanvasCode(code);
+  const advance=ms=>{now+=ms;const pending=[...frames.values()];frames.clear();pending.forEach(callback=>callback(now));};
+  const value=()=>run('dockHourAnimations.get(document.querySelector(".token-hours")).value');
+  run(`data.people[0].weekdayHours=[8,6.25,10.5,0,8,8,8];refresh();updateDockHours(dateKey(week),false);persist()`);
+  const before=aw.localStorage.getItem('flow-plan-v1');
+  assert.equal(aq('.token-hours').textContent,'8 h');
+  aq('.day-column:nth-child(2)').onpointerenter();
+  assert.equal(aq('.token-hours').textContent,'8 h');
+  assert.match(aq('.token').getAttribute('aria-label'),/6,25 h/);
+  const seen=[aq('.token-hours').textContent];
+  for(let i=0;i<30;i++){
+    // Repeated dragovers/hover updates must not restart the transition.
+    run('updateDockHours(dateKey(addDays(week,1)))');advance(16);
+    if(seen.at(-1)!==aq('.token-hours').textContent)seen.push(aq('.token-hours').textContent);
+  }
+  assert.deepEqual(seen,['8 h','7,75 h','7,5 h','7,25 h','7 h','6,75 h','6,5 h','6,25 h']);
+  run('updateDockHours(dateKey(addDays(week,2)))');advance(110);
+  const interrupted=value();assert.ok(interrupted>6.25&&interrupted<10.5);
+  run('updateDockHours(dateKey(addDays(week,3)))');assert.equal(value(),interrupted);
+  let last=interrupted;
+  for(let i=0;i<50;i++){advance(16);assert.ok(value()<=last&&value()>=0);last=value();}
+  assert.equal(value(),0);assert.equal(aq('.token-hours').textContent,'0 h');
+  assert.equal(run('dockHourAnimations.get(document.querySelector(".token-hours")).frame'),null);
+  // Reduced motion also completes an already-running transition immediately.
+  run('updateDockHours(dateKey(week))');advance(32);reduced=true;
+  run('updateDockHours(dateKey(week))');assert.equal(value(),8);
+  assert.equal(run('dockHourAnimations.get(document.querySelector(".token-hours")).frame'),null);
+  reduced=false;run('updateDockHours(dateKey(addDays(week,1)))');
+  const pendingFrame=run('dockHourAnimations.get(document.querySelector(".token-hours")).frame');
+  run('renderDock()');assert.equal(frames.has(pendingFrame),false);
+  assert.equal(aw.localStorage.getItem('flow-plan-v1'),before);
+  assert.ok(aq('.token time').dataset.dayHours.includes('7,75 h'));
+  aw.close();
+}
+console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/backgrounds/persistence, settings tabs, updates, weekly schedules, animated hours/retargeting/reduced motion, copies, whole-week drag/drop/undo, DST/year mapping, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();
