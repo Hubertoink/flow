@@ -37,7 +37,7 @@ data.shifts.forEach((s,index)=>{
 compactShifts();
 data.version=3;
 let week=monday(parseDate(todayKey())), focusDate=null, selected=null, editing=null, picked=null, drag=null, gesture=null, suppressClick=false, toastTimer,expandTimer,hoverDay;
-let copiedShift=null,copiedTask=null,copiedDay=null,copyPicked=false;
+let copiedShift=null,copiedTask=null,copiedDay=null,copiedWeek=null,copyPicked=false;
 const DAY_START=8, DAY_END=24, DAY_SPAN=DAY_END-DAY_START;
 let zoom=Number(data.settings.zoom)||1;
 const snap=n=>Math.round(n*4)/4, clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -104,25 +104,73 @@ function renderDock(){
   });
   updateDockHours();renderCopyTray();
 }
-function copyShift(id){const s=getShift(id);if(!s)return;copiedShift=structuredClone(s);copiedTask=null;copiedDay=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}
-function copyTask(id,taskId){const t=getShift(id)?.segments.find(t=>t.id===taskId);if(!t)return;copiedTask=structuredClone(t);copiedShift=null;copiedDay=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}
+function copyShift(id){const s=getShift(id);if(!s)return;copiedShift=structuredClone(s);copiedTask=null;copiedDay=null;copiedWeek=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}
+function copyTask(id,taskId){const t=getShift(id)?.segments.find(t=>t.id===taskId);if(!t)return;copiedTask=structuredClone(t);copiedShift=null;copiedDay=null;copiedWeek=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}
 const dayShifts=date=>data.shifts.filter(s=>s.date===date&&activeOn(data.people.find(p=>p.id===s.person),date)).toSorted((a,b)=>a.y-b.y||a.start-b.start);
 const dayLabel=(date,options={weekday:'long'})=>new Date(date+'T12:00:00').toLocaleDateString('de-DE',options);
-function copyDay(date){const shifts=dayShifts(date);if(!shifts.length)return;copiedDay={date,shifts:structuredClone(shifts)};copiedShift=null;copiedTask=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}
+function copyDay(date){const shifts=dayShifts(date);if(!shifts.length)return;copiedDay={date,shifts:structuredClone(shifts)};copiedShift=null;copiedTask=null;copiedWeek=null;copyPicked=false;picked=null;closePanel();renderCopyTray();$('#copy-badge')?.focus();}
 function dayCopyPlan(date){if(!copiedDay)return {add:[],skipped:0};const add=copiedDay.shifts.filter(s=>{const p=data.people.find(p=>p.id===s.person);return p&&activeOn(p,date)&&!data.shifts.some(other=>other.person===s.person&&other.date===date);});return {add,skipped:copiedDay.shifts.length-add.length};}
 function dayCopyBlocked(date){if(date===copiedDay?.date)return 'Das ist der kopierte Tag';return dayCopyPlan(date).add.length?'':'Alle Personen sind hier bereits eingeplant oder nicht im Team';}
 function placeDayCopy(date){if(!copiedDay)return;const blocked=dayCopyBlocked(date);if(blocked){toast(blocked+'.');return;}const {add,skipped}=dayCopyPlan(date),offset=data.shifts.filter(s=>s.date===date).length,created=add.map((source,index)=>{const s={...structuredClone(source),id:uid(),date,y:32+(offset+index)*56};s.segments.forEach(t=>t.id=uid());return s;});data.shifts.push(...created);copyPicked=false;persist();refresh();const ids=new Set(created.map(s=>s.id));toast(`${created.length} ${created.length===1?'Schicht':'Schichten'} auf ${dayLabel(date)} übernommen${skipped?`, ${skipped} übersprungen`:''}.`,()=>{data.shifts=data.shifts.filter(s=>!ids.has(s.id));persist();refresh();});}
+function copyWeek(){
+  const shifts=Array.from({length:7},(_,day)=>dayShifts(dateKey(addDays(week,day)))).flat();
+  if(!shifts.length){toast('Diese Woche enthält noch keine Schichten.');return;}
+  copiedWeek={date:dateKey(week),shifts:structuredClone(shifts)};
+  copiedShift=null;copiedTask=null;copiedDay=null;copyPicked=false;picked=null;
+  clearDrop();closePanel();closeMonthPicker();renderCopyTray();$('#copy-badge').focus();
+  toast(`KW ${isoWeek(week)} kopiert. In einer anderen Woche auf die Planungsfläche ziehen.`);
+}
+function weekCopyPlan(){
+  if(!copiedWeek)return {add:[],skipped:0};
+  const add=[];
+  for(const source of copiedWeek.shifts){
+    // Calendar dates preserve weekdays across daylight-saving and year changes.
+    const day=(parseDate(source.date).getDay()+6)%7,date=dateKey(addDays(week,day)),p=data.people.find(p=>p.id===source.person);
+    if(p&&activeOn(p,date)&&!data.shifts.some(s=>s.person===source.person&&s.date===date))add.push({source,date});
+  }
+  return {add,skipped:copiedWeek.shifts.length-add.length};
+}
+function weekCopyBlocked(){
+  if(dateKey(week)===copiedWeek?.date)return 'Das ist die kopierte Woche';
+  return weekCopyPlan().add.length?'':'Alle Personen sind hier bereits eingeplant oder nicht im Team';
+}
+function placeWeekCopy(){
+  if(!copiedWeek)return;
+  const blocked=weekCopyBlocked();if(blocked){toast(blocked+'.');return;}
+  const {add,skipped}=weekCopyPlan(),offsets=new Map();
+  const created=add.map(({source,date})=>{
+    const offset=offsets.get(date)??data.shifts.filter(s=>s.date===date).length;
+    offsets.set(date,offset+1);
+    const s={...structuredClone(source),id:uid(),date,y:32+offset*56};
+    s.segments.forEach(t=>t.id=uid());return s;
+  });
+  data.shifts.push(...created);copyPicked=false;editing=null;closePanel();persist();refresh();
+  const ids=new Set(created.map(s=>s.id));
+  toast(`${created.length} ${created.length===1?'Schicht':'Schichten'} in KW ${isoWeek(week)} übernommen${skipped?`, ${skipped} übersprungen`:''}.`,()=>{data.shifts=data.shifts.filter(s=>!ids.has(s.id));persist();refresh();});
+}
+function clearWeekCopyPreview(){const board=$('.board');board.classList.remove('week-copy-target','week-copy-blocked');board.querySelector('.week-copy-hint')?.remove();}
+function previewWeekCopy(e){
+  e.preventDefault();e.stopPropagation();
+  const blocked=weekCopyBlocked(),{add,skipped}=weekCopyPlan(),board=$('.board');
+  e.dataTransfer.dropEffect=blocked?'none':'copy';
+  board.classList.toggle('week-copy-target',!blocked);board.classList.toggle('week-copy-blocked',!!blocked);
+  const message=blocked||`KW ${isoWeek(week)} · ${add.length} ${add.length===1?'Schicht':'Schichten'} einfügen${skipped?` · ${skipped} übersprungen`:''}`;
+  let hint=board.querySelector('.week-copy-hint');
+  if(!hint){hint=document.createElement('div');hint.className='week-copy-hint';hint.setAttribute('role','status');board.append(hint);}
+  if(hint.textContent!==message)hint.textContent=message;
+}
 function positionCopyTray(){const tray=$('#copy-tray'),dock=$('.dock');if(!tray||tray.hidden||!dock)return;tray.style.marginLeft='';if(window.matchMedia?.('(max-width: 800px)').matches)return;const tokens=[...document.querySelectorAll('#tokens .token')],d=dock.getBoundingClientRect(),style=getComputedStyle(dock),left=d.left+parseFloat(style.paddingLeft||0),right=d.right-parseFloat(style.paddingRight||0),width=tray.getBoundingClientRect().width,tokensRight=tokens.length?Math.max(...tokens.map(t=>t.getBoundingClientRect().right)):left,centered=(left+right-width)/2,gap=16;
   // Center the tray when possible; otherwise keep it as close to the center as the member pills allow.
   const target=Math.max(centered,tokensRight+gap);if(target+width<=right)tray.style.marginLeft=Math.max(0,target-tokensRight-parseFloat(style.columnGap||0))+'px';}
 function renderCopyTray(){
-  const tray=$('#copy-tray');if(!tray)return;tray.hidden=!copiedShift&&!copiedTask&&!copiedDay;if(tray.hidden){tray.innerHTML='';return;}
-  if(copiedDay){const count=copiedDay.shifts.length;tray.innerHTML=`<button id="copy-badge" draggable="true" class="copy-badge day-copy-badge ${copyPicked?'selected':''}" style="--person:#c5b2ed" aria-pressed="${copyPicked}" aria-label="${esc(dayLabel(copiedDay.date))} kopiert, ${count} ${count===1?'Schicht':'Schichten'}, auf einen anderen Tag ziehen"><strong>${esc(dayLabel(copiedDay.date,{weekday:'short',day:'2-digit',month:'2-digit'}))}</strong><span class="day-copy-dots">${copiedDay.shifts.map(s=>`<i style="--dot:${data.people.find(p=>p.id===s.person)?.color||'#c5b2ed'}"></i>`).join('')}</span><time>${count} ${count===1?'Schicht':'Schichten'} · Auf einen Tag ziehen</time></button>`;}
+  const tray=$('#copy-tray');if(!tray)return;tray.hidden=!copiedShift&&!copiedTask&&!copiedDay&&!copiedWeek;if(tray.hidden){tray.innerHTML='';return;}
+  if(copiedWeek){const start=parseDate(copiedWeek.date),count=copiedWeek.shifts.length,label=`KW ${isoWeek(start)} · ${addDays(start,3).getFullYear()}`;tray.innerHTML=`<button id="copy-badge" draggable="true" class="copy-badge day-copy-badge week-copy-badge ${copyPicked?'selected':''}" style="--person:#c5b2ed" aria-pressed="${copyPicked}" aria-label="${label} kopiert, ${count} ${count===1?'Schicht':'Schichten'}, auf eine andere Woche ziehen"><strong>${label}</strong><time>${count} ${count===1?'Schicht':'Schichten'} · Auf eine Woche ziehen</time></button>`;}
+  else if(copiedDay){const count=copiedDay.shifts.length;tray.innerHTML=`<button id="copy-badge" draggable="true" class="copy-badge day-copy-badge ${copyPicked?'selected':''}" style="--person:#c5b2ed" aria-pressed="${copyPicked}" aria-label="${esc(dayLabel(copiedDay.date))} kopiert, ${count} ${count===1?'Schicht':'Schichten'}, auf einen anderen Tag ziehen"><strong>${esc(dayLabel(copiedDay.date,{weekday:'short',day:'2-digit',month:'2-digit'}))}</strong><span class="day-copy-dots">${copiedDay.shifts.map(s=>`<i style="--dot:${data.people.find(p=>p.id===s.person)?.color||'#c5b2ed'}"></i>`).join('')}</span><time>${count} ${count===1?'Schicht':'Schichten'} · Auf einen Tag ziehen</time></button>`;}
   else if(copiedTask){const t=copiedTask,name=t.label||task(t.type).name;tray.innerHTML=`<button id="copy-badge" draggable="true" class="copy-badge task-copy-badge ${copyPicked?'selected':''}" style="--person:${taskColor(t)};color:${taskInk(t)}" aria-pressed="${copyPicked}" aria-label="${esc(name)} kopiert, ${hours(t.duration)}, in eine Schicht ziehen"><strong>${esc(name)}</strong><time>${hours(t.duration)} · In eine Schicht ziehen</time></button>`;}
   else {const p=data.people.find(p=>p.id===copiedShift.person);tray.innerHTML=`<button id="copy-badge" draggable="true" class="copy-badge ${copyPicked?'selected':''}" style="--person:${p.color}" aria-pressed="${copyPicked}" aria-label="Schichtkopie von ${esc(p.name)} auf einen Tag ziehen"><span class="copy-mini-track">${copiedShift.segments.map(t=>`<span class="copy-mini-task" style="left:${t.offset/copiedShift.length*100}%;width:${t.duration/copiedShift.length*100}%;background:${taskColor(t)};color:${taskInk(t)}"><span>${esc(t.label||task(t.type).name)}</span></span>`).join('')}</span><span class="copy-mini-meta" style="color:${copiedShift.segments.find(t=>t.offset===0)?taskInk(copiedShift.segments.find(t=>t.offset===0)):'#172032'}"><strong>${esc(p.name)}</strong><time>${fmtTime(copiedShift.start)}–${fmtTime(copiedShift.start+copiedShift.length)}</time></span></button>`;}
-  tray.insertAdjacentHTML('beforeend',`<button id="dismiss-copy" class="icon-button" aria-label="${copiedDay?'Tages':copiedTask?'Aufgaben':'Schicht'}kopie verwerfen">${icon('close')}</button>`);
-  $('#copy-badge').ondragstart=e=>{drag=copiedDay?{kind:'day-copy'}:copiedTask?{kind:'task-copy'}:{kind:'copy',id:copiedShift.person};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';closePanel();if(copiedTask)startTaskCopyGhost(e);};
-  $('#copy-badge').ondragend=clearDrop;$('#copy-badge').onclick=()=>{copyPicked=!copyPicked;picked=null;renderCopyTray();};$('#dismiss-copy').onclick=()=>{copiedShift=null;copiedTask=null;copiedDay=null;copyPicked=false;renderCopyTray();};
+  tray.insertAdjacentHTML('beforeend',`<button id="dismiss-copy" class="icon-button" aria-label="${copiedWeek?'Wochen':copiedDay?'Tages':copiedTask?'Aufgaben':'Schicht'}kopie verwerfen">${icon('close')}</button>`);
+  $('#copy-badge').ondragstart=e=>{drag=copiedWeek?{kind:'week-copy'}:copiedDay?{kind:'day-copy'}:copiedTask?{kind:'task-copy'}:{kind:'copy',id:copiedShift.person};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';closePanel();if(copiedTask)startTaskCopyGhost(e);};
+  $('#copy-badge').ondragend=clearDrop;$('#copy-badge').onclick=()=>{copyPicked=!copyPicked;picked=null;renderCopyTray();};$('#dismiss-copy').onclick=()=>{copiedShift=null;copiedTask=null;copiedDay=null;copiedWeek=null;copyPicked=false;clearDrop();renderCopyTray();};
   positionCopyTray();
 }
 function taskCopyPlacement(s,offset){if(!s)return {error:'Aufgabenkopie in eine bestehende Schicht ziehen.'};const gap=findGap(s,offset,copiedTask.duration);return gap?{gap}:{error:'Kein ausreichend großer freier Bereich in dieser Schicht. Bitte zuerst Platz schaffen.'};}
@@ -185,6 +233,7 @@ function renderTimeline(){
   const ds=dates(),last=addDays(week,6);
   $('#date-range').textContent=`${week.toLocaleDateString('de-DE',{day:'numeric',month:'short'})} – ${last.toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'})}`;
   $('#week-number').textContent='KW '+isoWeek(week);
+  $('#week-number').setAttribute('aria-label',`KW ${isoWeek(week)} kopieren, ${dayLabel(dateKey(week),{day:'numeric',month:'long',year:'numeric'})} bis ${dayLabel(dateKey(last),{day:'numeric',month:'long',year:'numeric'})}`);
   const grid=$('#timeline'); grid.style.setProperty('--days',ds.length);
   grid.innerHTML=ds.map(d=>{const key=dateKey(d),shifts=data.shifts.filter(s=>s.date===key&&activeOn(data.people.find(p=>p.id===s.person),key));return `<section class="day-column" data-date="${key}"><button class="day-head ${key===todayKey()?'current':''}" data-date="${key}" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})} öffnen"><span class="day-title"><span class="day-name">${d.toLocaleDateString('de-DE',{weekday:'long'})}</span><span class="day-short">${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><span class="day-date">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span></span><span class="hours">${[8,10,12,14,16,18,20,22,24].map(h=>`<span>${String(h).padStart(2,'0')}</span>`).join('')}</span></button>${shifts.length?`<div class="day-copy-anchor"><button class="day-copy" data-copy-day="${key}" title="Tag kopieren" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})} kopieren">${icon('copy')}</button></div>`:''}<div class="day-cell" data-date="${key}" tabindex="0" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})}, Schicht platzieren" style="min-height:${Math.max(0,...shifts.map(s=>displayY(s)+editExtra(s)+100))}px">${shifts.map(shiftMarkup).join('')}</div></section>`;}).join('');
   grid.querySelectorAll('.day-cell').forEach(cell=>{
@@ -251,7 +300,7 @@ function placeInDay(s,wanted){
 function hourAt(cell,x){const r=cell.getBoundingClientRect();return snap(8+(x-r.left)/r.width*DAY_SPAN);}
 function removePreview(cell){cell.classList.remove('drag-over','drop-blocked');cell.querySelector('.drop-preview')?.remove();cell.querySelectorAll('.drop-rejection').forEach(el=>el.remove());cell.querySelectorAll('.shift').forEach(el=>el.style.top=displayY(getShift(el.dataset.shift))+'px');}
 function dropBlocked(date){if(drag?.kind==='day-copy')return dayCopyBlocked(date);if(drag?.kind!=='person'&&drag?.kind!=='copy')return '';const p=data.people.find(p=>p.id===drag.id);if(!p||!activeOn(p,date))return 'An diesem Tag nicht im Team';if(drag.kind==='person'&&newShiftLength(p,date)>DAY_SPAN)return 'Tagesstunden einschließlich Pause passen nicht in 08:00–24:00';return data.shifts.some(s=>s.person===p.id&&s.date===date)?`${p.name} ist bereits eingeplant`:'';}
-function clearDrop(){drag=null;clearTimeout(expandTimer);hoverDay=null;$('.task-copy-ghost')?.remove();document.querySelectorAll('.task-copy-target').forEach(el=>el.classList.remove('task-copy-target'));document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours();}
+function clearDrop(){drag=null;clearTimeout(expandTimer);hoverDay=null;clearWeekCopyPreview();$('.task-copy-ghost')?.remove();document.querySelectorAll('.task-copy-target').forEach(el=>el.classList.remove('task-copy-target'));document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours();}
 function previewDrop(cell,e){
   document.querySelectorAll('.day-cell').forEach(removePreview);updateDockHours(cell.dataset.date);
   if(drag.kind==='day-copy'){const blocked=dayCopyBlocked(cell.dataset.date);if(blocked){e.dataTransfer.dropEffect='none';cell.classList.add('drop-blocked');cell.insertAdjacentHTML('beforeend',`<span class="drop-rejection">${icon('ban')}${esc(blocked)}</span>`);return;}e.dataTransfer.dropEffect='copy';const {add,skipped}=dayCopyPlan(cell.dataset.date);cell.classList.add('drag-over');cell.insertAdjacentHTML('beforeend',`<span class="drop-rejection day-copy-hint">${icon('copy')}${add.length} ${add.length===1?'Schicht':'Schichten'} einfügen${skipped?` · ${skipped} übersprungen`:''}</span>`);return;}
@@ -477,6 +526,19 @@ window.addEventListener('resize',positionMonthPicker);
 function closeMenu(){$('#menu').hidden=true;$('#more').setAttribute('aria-expanded','false');}
 $('#prev').onclick=()=>changeWeek(-7);$('#next').onclick=()=>changeWeek(7);$('#today').onclick=()=>{week=monday(parseDate(todayKey()));changeWeek(0);};
 $('#settings-button').onclick=()=>openSettings();
+$('#week-number').onclick=copyWeek;
+// A week drop targets the entire canvas; intercept before day/shift handlers.
+const weekCopySurface=$('#grid-scroll');
+for(const type of ['dragenter','dragover'])weekCopySurface.addEventListener(type,e=>{if(drag?.kind==='week-copy')previewWeekCopy(e);},true);
+weekCopySurface.addEventListener('dragleave',e=>{if(!weekCopySurface.contains(e.relatedTarget))clearWeekCopyPreview();});
+weekCopySurface.addEventListener('drop',e=>{if(drag?.kind!=='week-copy')return;e.preventDefault();e.stopPropagation();clearDrop();placeWeekCopy();},true);
+function pastePickedWeek(e){
+  if(!copyPicked||!copiedWeek||suppressClick||e.target.closest('.day-copy,.shift-edit,.shift-copy,.task-copy'))return;
+  if(e.type==='keydown'&&!['Enter',' '].includes(e.key))return;
+  e.preventDefault();e.stopPropagation();placeWeekCopy();
+}
+weekCopySurface.addEventListener('click',pastePickedWeek,true);
+weekCopySurface.addEventListener('keydown',pastePickedWeek,true);
 $('.footer-label').textContent='AUFGABEN';
 $('#detail').setAttribute('aria-label','Schicht-Toolkit');
 function renderLegend(){$('#legend').innerHTML=tasks.filter(t=>!t.hidden).map(t=>`<button draggable="true" class="legend-item" data-type="${t.id}"><i class="legend-dot" style="--segment:${t.color}"></i>${esc(t.name)}</button>`).join('');document.querySelectorAll('[data-type]').forEach(el=>{el.ondragstart=e=>{drag={kind:'task',id:el.dataset.type};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';};el.ondragend=clearDrop;el.onclick=()=>{const s=getShift(selected||editing);if(s)addTask(s,el.dataset.type,0);else toast('Aufgabe in eine Schicht ziehen oder zuerst eine Schicht auswählen.');};});}

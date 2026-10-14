@@ -42,6 +42,16 @@ oder nicht im Team sind, werden übersprungen; das Einfügen lässt sich rückg�
 machen. Mitarbeitende und Aufgabenvorlagen bieten dieselben 20 Farbvorgaben
 wie flexible Aufgaben.
 
+Ein Klick auf das **KW-Badge** kopiert die gesamte Woche als Pill neben den
+Mitgliedern. Danach zur gewünschten Woche wechseln und die Pill auf die
+Planungsfläche ziehen; alternativ die Pill anklicken und auf der Fläche klicken
+oder Enter drücken. Alle sieben Wochentage werden übernommen, einschließlich
+ausgeblendeter Wochenendtage. Uhrzeiten, Aufgaben, Farben und die Reihenfolge
+innerhalb der Tage bleiben erhalten. Bereits belegte Personentage sowie im
+Zielzeitraum nicht aktive Personen werden übersprungen. Die Vorschau zeigt die
+Anzahl vor dem Ablegen; **Rückgängig** entfernt alle gerade eingefügten Schichten.
+Die Kopie bleibt für weitere Wochen verfügbar, bis sie ersetzt oder verworfen wird.
+
 Die Einstellungen (Zahnrad neben dem Drei-Punkte-Menü oder **Weitere Optionen → Einstellungen**)
 sind über ein linkes Menü in **Allgemein**, **Pausenregelung**, **Mitarbeitende**,
 **Aufgabenvorlagen** und **Updates** gegliedert; die Reiter lassen sich auch

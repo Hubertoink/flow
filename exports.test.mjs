@@ -179,6 +179,7 @@ const chooseImport=async(text,name='Plan.json')=>{
   Object.defineProperty(input,'files',{configurable:true,value:[new w.File([text],name,{type:'application/json'})]});
   await input.onchange();
 };
+q('#week-number').click();assert.ok(q('#copy-badge.week-copy-badge'));
 w.openPlanImport();assert.equal(q('#confirm-plan-import').disabled,true);
 await chooseImport(candidateText,'<script>Plan.json');assert.equal(q('#plan-import-preview').hidden,false);
 assert.equal(q('#plan-import-preview script'),null);assert.equal(q('#plan-import-preview strong').textContent,'<script>Plan.json');
@@ -194,6 +195,7 @@ storagePrototype.setItem=function(key,value){if(key==='flow-plan-v1')throw new E
 q('#plan-import-form').dispatchEvent(new w.Event('submit',{cancelable:true}));
 assert.match(q('#plan-import-error').textContent,/Kein Speicherplatz/);assert.equal(storage(),planBefore);
 assert.equal(w.runExportCode('data.people[0].name'),transfer.plan.people[0].name);
+assert.ok(w.runExportCode('copiedWeek'));assert.equal(q('#copy-tray').hidden,false);
 storagePrototype.setItem=originalSetItem;
 q('#plan-import-form').dispatchEvent(new w.Event('submit',{cancelable:true}));
 assert.equal(q('#modal').open,false);assert.equal(w.runExportCode('dateKey(week)'),importCandidate.week);
@@ -203,6 +205,7 @@ assert.equal(JSON.parse(storage()).settings.saturday,true);assert.equal(JSON.par
 assert.equal(d.querySelectorAll('.day-head').length,6);assert.equal([...d.querySelectorAll('.day-name')].at(-1).textContent,'Samstag');
 assert.match(d.documentElement.style.getPropertyValue('--background-image'),/foggy/);
 assert.equal(q('#copy-tray').hidden,true);assert.equal(q('.editing'),null);
+assert.equal(w.runExportCode('copiedWeek'),null);assert.equal(w.runExportCode('copiedDay'),null);
 assert.equal(JSON.parse(storage()).settings.breakRules[0].minutes,30);
 const recovery=JSON.parse(w.localStorage.getItem('flow-plan-before-import'));
 assert.equal(recovery.plan.people[0].name,transfer.plan.people[0].name);assert.equal(recovery.week,weekBefore);

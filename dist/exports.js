@@ -83,7 +83,7 @@ function readPlanTransfer(text){
 function applyImportedPlan(transfer){
   clearDrop();closePanel();closeWeekInfo();closeMonthPicker();
   data=transfer.plan;tasks.splice(0,tasks.length,...data.taskTypes);
-  selected=null;editing=null;focusDate=null;picked=null;copyPicked=false;copiedShift=null;copiedTask=null;
+  selected=null;editing=null;focusDate=null;picked=null;copyPicked=false;copiedShift=null;copiedTask=null;copiedDay=null;copiedWeek=null;
   zoom=Number(data.settings.zoom)||1;week=monday(parseDate(transfer.week||todayKey()));
   applyTheme();applyBackground();renderLegend();refresh();
 }

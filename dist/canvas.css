@@ -75,7 +75,7 @@
 .day-head .hours{position:static;width:100%;margin-top:10px;flex:none}
 @media(max-width:800px){.day-head{height:56px;padding-top:8px;padding-bottom:7px}}
 @media(max-width:800px){.topbar{height:68px;flex-wrap:nowrap;gap:10px;padding-top:0;padding-bottom:0}.week-nav{position:static;transform:none;margin:0;gap:2px;min-width:0}.date-wrap{min-width:0;gap:6px}#date-range{font-size:13px}.brand{gap:8px;flex:none}.brand-logo{width:36px;height:36px}.header-actions{flex:none}}
-@media(max-width:640px){.wordmark{display:none}.week-number{display:none}}
+@media(max-width:640px){.wordmark{display:none}.week-number{font-size:9px;padding:4px}}
 .dock{--pill-height:33px}
 .copy-tray{align-self:flex-start}
 .copy-tray .copy-badge{height:var(--pill-height);border-radius:calc(var(--pill-height)/2)}
@@ -102,3 +102,10 @@
 .day-copy-dots i{width:6px;height:6px;border-radius:50%;background:var(--dot)}
 .day-copy-hint{background:#262a40ed;color:#d9cdf5}
 @media print{.day-copy-anchor{display:none!important}}
+.week-number{transition:background 120ms ease,color 120ms ease}
+.week-number:hover,.week-number:focus-visible{color:var(--text,#e1e7ef);background:var(--hover,#30384d)}
+.week-copy-target{outline:2px solid #b9a5eb;outline-offset:-2px}
+.week-copy-blocked{outline:1px solid #cb8794;outline-offset:-1px}
+.week-copy-hint{position:absolute;bottom:58px;left:50%;transform:translateX(-50%);max-width:calc(100% - 32px);padding:10px 16px;border-radius:12px;background:var(--surface,#1b2433);color:var(--text,#e1e7ef);border:1px solid #b9a5eb60;box-shadow:0 4px 20px #0003;font-size:12px;z-index:25;pointer-events:none;text-align:center}
+.week-copy-blocked .week-copy-hint{border-color:#cb879480}
+@media print{.week-nav #week-number{visibility:visible}.week-copy-hint{display:none!important}}

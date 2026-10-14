@@ -439,4 +439,86 @@ assert.match(reloaded.window.document.documentElement.style.getPropertyValue('--
 bq('[name=background][value=""]').click();assert.equal(bw.document.documentElement.classList.contains('has-background'),false);
 assert.equal(bw.document.documentElement.style.getPropertyValue('--background-image'),'');bw.close();
 }
-console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/backgrounds/persistence, settings tabs, updates, weekly schedules, copies, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();
+{
+  // Whole-week copies include hidden weekends and preserve weekdays across DST/year boundaries.
+  for(const start of ['2026-10-19','2026-12-28']){
+    const wd=boot(),ww=wd.window,wq=s=>ww.document.querySelector(s),run=code=>ww.runCanvasCode(code);
+    const shifts=()=>JSON.parse(run('JSON.stringify(data.shifts)'));
+    run(`week=parseDate('${start}');data.shifts=[
+      {id:'week-mon-a',person:'niko',date:dateKey(week),start:8,length:3,y:32,segments:[{id:'week-task',type:'flex',label:'Team <Meeting>',color:'#112233',offset:.5,duration:2}]},
+      {id:'week-mon-b',person:'niko',date:dateKey(week),start:13,length:4,y:88,segments:[]},
+      {id:'week-tue',person:'kayla',date:dateKey(addDays(week,1)),start:9,length:8,y:32,segments:[]},
+      {id:'week-fri',person:'sam',date:dateKey(addDays(week,4)),start:10,length:6,y:32,segments:[]},
+      {id:'week-sun',person:'lea',date:dateKey(addDays(week,6)),start:12,length:5,y:32,segments:[]}
+    ];persist();refresh();expandDay(dateKey(addDays(week,1)));`);
+    const source=shifts();
+    assert.equal(wq('#week-number').tagName,'BUTTON');
+    wq('#week-number').click();
+    assert.equal(wq('#month-picker').hidden,true);
+    assert.ok(wq('#copy-badge.week-copy-badge'));
+    assert.match(wq('#copy-badge').textContent,/5 Schichten/);
+    assert.equal(run('copiedWeek.shifts.length'),5);
+    const dt={setData(_type,value){this.payload=JSON.parse(value);},effectAllowed:'',dropEffect:''};
+    const dragEvent=(type,target)=>{const e=new ww.Event(type,{bubbles:true,cancelable:true});Object.defineProperty(e,'dataTransfer',{value:dt});target.dispatchEvent(e);return e;};
+    dragEvent('dragstart',wq('#copy-badge'));
+    assert.equal(dt.payload.kind,'week-copy');
+    dragEvent('dragover',wq('.day-head'));assert.equal(dt.dropEffect,'none');
+    assert.match(wq('.week-copy-hint').textContent,/kopierte Woche/);
+    dragEvent('drop',wq('.day-cell'));assert.deepEqual(shifts(),source);
+    assert.equal(wq('.week-copy-hint'),null);
+    wq('#next').click();
+    const targetWeek=run('dateKey(week)');
+    assert.equal(run('copiedWeek.date'),start);
+    assert.equal(run('focusDate'),null);
+    run(`data.people.find(p=>p.id==='kayla').until='${start}';
+      data.shifts.push({id:'week-existing',person:'sam',date:dateKey(addDays(week,4)),start:8,length:2,y:32,segments:[]});
+      data.shifts.find(s=>s.id==='week-mon-a').segments[0].label='Source edited after copying';persist();refresh();`);
+    const before=shifts();
+    dragEvent('dragstart',wq('#copy-badge'));
+    dragEvent('dragover',ww.document.querySelectorAll('.day-head')[1]);
+    assert.equal(dt.dropEffect,'copy');assert.match(wq('.week-copy-hint').textContent,/3 Schichten einfügen · 2 übersprungen/);
+    // Drop over an existing shift: date mapping still follows the copied weekdays.
+    dragEvent('drop',wq('[data-shift="week-existing"]'));
+    const after=shifts(),created=after.filter(s=>!before.some(old=>old.id===s.id));
+    assert.equal(created.length,3);
+    assert.deepEqual(created.map(s=>s.date),[targetWeek,targetWeek,run('dateKey(addDays(week,6))')]);
+    assert.deepEqual(created.map(s=>s.y),[32,88,32]);
+    for(const [copy,original] of [[created[0],source[0]],[created[1],source[1]],[created[2],source[4]]]){
+      const strip=s=>{const {id,date,y,...rest}=s;return {...rest,segments:s.segments.map(({id,...t})=>t)};};
+      assert.deepEqual(strip(copy),strip(original));assert.notEqual(copy.id,original.id);
+    }
+    assert.notEqual(created[0].segments[0].id,source[0].segments[0].id);
+    assert.deepEqual(after.filter(s=>before.some(old=>old.id===s.id)),before);
+    assert.equal(wq('.week-copy-hint'),null);assert.equal(wq('.week-copy-target'),null);
+    assert.equal(wq('#copy-tray').hidden,false);
+    assert.deepEqual(JSON.parse(ww.localStorage.getItem('flow-plan-v1')).shifts,after);
+    wq('#toast button').click();assert.deepEqual(shifts(),before);
+    // Keyboard fallback and duplicate prevention operate on the full target week.
+    wq('#copy-badge').click();
+    wq('.day-cell').dispatchEvent(new ww.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    assert.equal(shifts().length,before.length+3);
+    wq('#copy-badge').click();wq('.day-cell').click();
+    assert.equal(shifts().length,before.length+3);assert.match(wq('#toast').textContent,/bereits eingeplant/);
+    // The same pill can populate a further week, and Escape clears its preview.
+    wq('#next').click();dragEvent('dragstart',wq('#copy-badge'));dragEvent('dragover',wq('#grid-scroll'));
+    assert.equal(dt.dropEffect,'copy');
+    ww.document.dispatchEvent(new ww.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+    assert.equal(wq('.week-copy-hint'),null);assert.equal(run('drag'),null);
+    dragEvent('dragstart',wq('#copy-badge'));dragEvent('dragover',wq('#grid-scroll'));
+    wq('#grid-scroll').dispatchEvent(new ww.Event('dragleave',{bubbles:true}));assert.equal(wq('.week-copy-hint'),null);
+    dragEvent('drop',wq('.canvas-surface'));assert.equal(shifts().length,before.length+7);
+    const restored=boot(JSON.parse(ww.localStorage.getItem('flow-plan-v1')));
+    assert.equal(restored.window.runCanvasCode('data.shifts.length'),shifts().length);restored.window.close();
+    wq('#dismiss-copy').click();assert.equal(wq('#copy-tray').hidden,true);assert.equal(run('copiedWeek'),null);
+    ww.close();
+  }
+  const wd=boot(),ww=wd.window,wq=s=>ww.document.querySelector(s),run=code=>ww.runCanvasCode(code);
+  wq('#week-number').click();assert.equal(wq('#copy-tray').hidden,true);assert.match(wq('#toast').textContent,/keine Schichten/);
+  run(`createShift('niko',dateKey(week));`);wq('#week-number').click();
+  run('copyDay(dateKey(week))');assert.equal(run('copiedWeek'),null);
+  wq('#week-number').click();run('copyShift(data.shifts[0].id)');assert.equal(run('copiedWeek'),null);
+  wq('#week-number').click();run(`data.shifts[0].segments.push({id:'replace-task',type:'open',offset:0,duration:1});copyTask(data.shifts[0].id,'replace-task')`);assert.equal(run('copiedWeek'),null);
+  wq('#week-number').click();assert.equal(run('copiedTask'),null);assert.equal(run('copiedShift'),null);assert.equal(run('copiedDay'),null);
+  ww.close();
+}
+console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/backgrounds/persistence, settings tabs, updates, weekly schedules, copies, whole-week drag/drop/undo, DST/year mapping, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();
