@@ -90,8 +90,8 @@
 .palette-field{margin:0 0 16px}
 .palette-field legend{font-size:11px}
 .day-copy-anchor{position:sticky;top:0;height:0;z-index:13;pointer-events:none}
-.day-copy{position:absolute;left:0;top:-38px;transform:translateY(-50%);width:22px;height:22px;display:grid;place-items:center;border-radius:6px;color:var(--muted,#98a6bd);background:var(--surface,#1b2433);border:1px solid var(--border,#ffffff12);opacity:0;pointer-events:none;transition:opacity 120ms ease,color 120ms ease;cursor:pointer}
-.day-copy svg{width:12px;height:12px}
+.day-copy{position:absolute;left:0;top:-38px;transform:translateY(-50%);width:22px;height:22px;padding:0;line-height:0;display:grid;place-items:center;border-radius:6px;color:var(--muted,#98a6bd);background:var(--surface,#1b2433);border:1px solid var(--border,#ffffff12);opacity:0;pointer-events:none;transition:opacity 120ms ease,color 120ms ease;cursor:pointer}
+.day-copy svg{display:block;width:12px;height:12px}
 .day-column:has(.day-head:hover) .day-copy,.day-copy:hover,.day-copy:focus-visible{opacity:1;pointer-events:auto}
 .day-copy:hover,.day-copy:focus-visible{color:var(--text,#e1e7ef);background:var(--hover,#253044)}
 .day-copy:focus-visible{outline:2px solid #c5b2ed;outline-offset:1px}
