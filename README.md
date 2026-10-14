@@ -32,6 +32,11 @@ sie geöffnet; ein Klick auf eine Aufgabe öffnet dann deren Details. Das
 Bearbeitungsicon bleibt zum Öffnen und Schließen erhalten. Ziehen und
 Größenänderungen öffnen die Schicht nicht versehentlich.
 
+Ein Doppelklick auf eine ausgeklappte Aufgabe öffnet ihre Zeiten, Bezeichnung
+und **Aufgabe löschen**. Die zugehörige Schicht bleibt beim Löschen erhalten.
+Die Teamversion bestätigt das Speichern ohne Ausblenden der Oberfläche und
+ohne erneuten Canvas-Aufbau, wenn der Server den dargestellten Plan bestätigt.
+
 Schichten eines Tages stehen kompakt untereinander mit 12 Pixeln Abstand,
 ohne große Leerstellen. Vertikales Ziehen bestimmt die Reihenfolge: oberhalb
 oder unterhalb einer anderen Schicht. Die anderen Schichten rücken mit;

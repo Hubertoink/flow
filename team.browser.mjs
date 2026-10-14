@@ -24,11 +24,37 @@ export async function runBrowserTests({url,email,password}){
     await page.locator('.token').filter({hasText:'Admin Test'}).click();await page.locator('.day-cell').first().press('Enter');
     await page.waitForFunction(()=>data.shifts.some(s=>s.person===window.flowTeam.bootstrap.member.personId)&&!document.body.classList.contains('team-saving'));
     const ownShift=await page.evaluate(()=>data.shifts.find(s=>s.person===window.flowTeam.bootstrap.member.personId).id);
+    assert(!await page.locator('#team-week-state').isVisible(),'Unpublished weeks must not show a draft badge');
+    await page.locator('.day-head').first().click();
+    await page.waitForFunction(()=>!document.querySelector('#timeline').getAnimations().length);
+    let releaseSave;
+    const saveGate=new Promise(resolve=>releaseSave=resolve);
+    const delaySave=async route=>{const response=await route.fetch();await saveGate;await route.fulfill({response});};
+    await page.route('**/api/plan/commands',delaySave);
+    try{
+      const shift=page.locator(`[data-shift="${ownShift}"]`),rect=await shift.boundingBox();
+      const start=await page.evaluate(id=>getShift(id).start,ownShift);
+      await page.mouse.move(rect.x+rect.width/2,rect.y+22);await page.mouse.down();
+      await page.mouse.move(rect.x+rect.width/2+50,rect.y+22,{steps:8});await page.mouse.up();
+      await page.waitForFunction(()=>document.body.classList.contains('team-saving'));
+      assert.equal(await page.locator('#app').evaluate(el=>getComputedStyle(el).opacity),'1','Saving must not fade the canvas');
+      assert.notEqual(await page.evaluate(id=>getShift(id).start,ownShift),start);
+      const node=await shift.elementHandle();
+      releaseSave();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+      assert(await node.evaluate(el=>el.isConnected),'Save acknowledgement must preserve the rendered shift');
+    }finally{releaseSave();await page.unroute('**/api/plan/commands',delaySave);}
     await page.locator(`[data-shift="${ownShift}"]`).hover();await page.locator(`[data-shift="${ownShift}"] .team-shift-lock`).click();await page.locator('#team-shift-lock').selectOption('times');
     await page.waitForFunction(id=>data.shifts.find(s=>s.id===id)?.lock==='times'&&!document.body.classList.contains('team-saving'),ownShift);
     await page.locator(`[data-shift="${ownShift}"] .shift-edit`).click();await page.locator('[data-type=flex]').click();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));await page.locator('#task-label').fill('Browser-Aufgabe');await page.locator('#task-label').press('Tab');
     await page.waitForFunction(()=>data.shifts.some(s=>s.segments.some(t=>t.label==='Browser-Aufgabe'))&&!document.body.classList.contains('team-saving'));
     await page.locator('#toolkit-form .primary-button').click();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+    await page.locator(`[data-shift="${ownShift}"] .segment`).dblclick();
+    assert.equal(await page.locator('#task-label').inputValue(),'Browser-Aufgabe');
+    await page.getByRole('button',{name:'Aufgabe löschen',exact:true}).click();
+    await page.waitForFunction(id=>getShift(id)?.segments.length===0&&!document.body.classList.contains('team-saving'),ownShift);
+    assert(await page.locator(`[data-shift="${ownShift}"]`).isVisible(),'Deleting a task must retain its shift');
+    await page.locator('#toast button').click();
+    await page.waitForFunction(id=>getShift(id)?.segments.some(t=>t.label==='Browser-Aufgabe')&&!document.body.classList.contains('team-saving'),ownShift);
     assert(await page.locator(`[data-shift="${ownShift}"] .team-lock-label`).isVisible());
     await page.locator('#more').click();await page.locator('[data-action=image]').click();const pngDownload=page.waitForEvent('download');await page.locator('#start-export').click();const png=await pngDownload;assert(png.suggestedFilename().endsWith('.png'));await page.locator('#export-form').waitFor({state:'hidden'});
     await page.reload();await page.locator('#team-user-toggle').waitFor();

@@ -34,8 +34,12 @@
     state=next;base=clone(next.plan);preferences=clone(next.preferences);team.bootstrap=next;
     if(close){endGesture(true);closePanel();document.querySelector('#modal')?.close();window.closeProjectFocus?.();editing=null;selected=null;picked=null;clearDrop();}
     const updated={...clone(next.plan),settings:{...clone(next.plan.settings),...clone(next.preferences)}};
+    const unchanged=!close&&same(data,updated);
     data=close?updated:reconcile(data,updated);
     tasks.splice(0,tasks.length,...clone(data.taskTypes));
+    // A save acknowledgement usually confirms the already rendered optimistic plan.
+    // Keep its DOM, scroll position and open editor instead of rebuilding the canvas.
+    if(unchanged){decorate();return;}
     zoom=Number(data.settings.zoom)||1;applyTheme();applyBackground();renderLegend();refresh();status();
   }
   function diff(before,after){const changes=[];for(const collection of collectionNames){const a=new Map(before[collection].map(e=>[e.id,e])),b=new Map(after[collection].map(e=>[e.id,e]));for(const id of new Set([...a.keys(),...b.keys()]))if(!same(a.get(id),b.get(id)))changes.push({collection,id,before:a.get(id)||null,after:b.get(id)||null});}if(!same(before.settings,after.settings))changes.push({collection:'settings',id:'settings',before:before.settings,after:after.settings});return changes;}
@@ -85,7 +89,7 @@
     finally{busy(false);}
   }
   function decorate(){
-    const weekState=document.querySelector('#team-week-state');if(weekState){const p=period(dateKey(week));weekState.textContent=(p?.published?'Veröffentlicht':'Entwurf')+(p?.timesLocked?' · Zeiten fixiert':'');document.querySelector('#team-publish').innerHTML=icon('users')+(p?.published?'Woche als Entwurf':'Woche veröffentlichen');document.querySelector('#team-week-lock').innerHTML=icon('lock')+(p?.timesLocked?'Wochenzeiten freigeben':'Wochenzeiten fixieren');}
+    const weekState=document.querySelector('#team-week-state');if(weekState){const p=period(dateKey(week));weekState.textContent=[p?.published?'Veröffentlicht':'',p?.timesLocked?'Zeiten fixiert':''].filter(Boolean).join(' · ');weekState.hidden=!weekState.textContent;document.querySelector('#team-publish').innerHTML=icon('users')+(p?.published?'Woche als Entwurf':'Woche veröffentlichen');document.querySelector('#team-week-lock').innerHTML=icon('lock')+(p?.timesLocked?'Wochenzeiten freigeben':'Wochenzeiten fixieren');}
     document.querySelectorAll('.shift').forEach(element=>{
       const s=getShift(element.dataset.shift);if(!s)return;
       element.classList.toggle('team-readonly',!!timeReason(s));
