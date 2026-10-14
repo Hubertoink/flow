@@ -18,7 +18,6 @@ jobs:
         options: --health-cmd "pg_isready -U flow -d flow" --health-interval 3s --health-timeout 3s --health-retries 20
     env:
       DATABASE_URL: postgresql://flow:flow-ci-password@127.0.0.1:5432/flow
-      FLOW_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +29,8 @@ jobs:
       - run: mkdir -p .flow-local
       - run: npx playwright-core install --with-deps chromium
       - run: node team.test.mjs
+        env:
+          FLOW_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
       - run: docker build -t flow-team:ci .
       - run: docker build -f Dockerfile.backup -t flow-team-backup:ci .
   publish:
