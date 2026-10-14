@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 umask 077
+if [ -f /run/flow-backup.env ]; then . /run/flow-backup.env; fi
 mkdir -p /backups
 target="/backups/flow-$(date -u +%Y-%m-%dT%H-%M-%SZ).dump"
 temporary="$target.partial"
