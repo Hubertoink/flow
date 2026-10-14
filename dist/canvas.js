@@ -87,17 +87,23 @@ function showDockHours(label,target,animate=true){
   const previous=dockHourAnimations.get(label),reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if(animate&&!reducedMotion&&previous?.target===target)return;
   if(previous?.frame)cancelAnimationFrame(previous.frame);
-  const state={value:previous?.value??target,target,frame:null};dockHourAnimations.set(label,state);
-  const paint=value=>{state.value=value;label.textContent=hours(value);};
+  previous?.fade?.cancel();
+  const state={value:previous?.value??target,target,frame:null,fade:null};dockHourAnimations.set(label,state);
+  const paint=(value,soften=false)=>{
+    state.value=value;const text=hours(value);if(label.textContent===text)return;
+    label.textContent=text;
+    if(soften){state.fade?.cancel();state.fade=label.animate?.([{opacity:.65},{opacity:1}],{duration:100,easing:'ease-out'});}
+  };
   if(!animate||reducedMotion||state.value===target){paint(target);return;}
   const from=state.value,direction=Math.sign(target-from),ticks=[];
   for(let quarter=direction>0?Math.floor(from*4)+1:Math.ceil(from*4)-1;direction>0?quarter<target*4:quarter>target*4;quarter+=direction)ticks.push(quarter/4);
   ticks.push(target);
-  const steps=ticks.length,duration=clamp(steps*55,180,700),started=performance.now();
+  // Keep large jumps as calm as small ones, and ignore fleeting day hovers.
+  const steps=Math.min(ticks.length,4),duration=steps*100,started=performance.now()+60;
   const frame=now=>{
     if(!label.isConnected){state.frame=null;return;}
-    const progress=clamp((now-started)/duration,0,1),step=Math.floor((1-(1-progress)**2)*steps);
-    paint(step===0?from:ticks[step-1]);
+    const progress=clamp((now-started)/duration,0,1),step=Math.floor(progress*steps);
+    paint(step===0?from:ticks[Math.round(step/steps*ticks.length)-1],true);
     state.frame=progress<1?requestAnimationFrame(frame):null;
   };
   state.frame=requestAnimationFrame(frame);
@@ -120,7 +126,7 @@ function isoWeek(d){const v=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.get
 function refresh(){renderDock();renderTimeline();}
 function renderDock(){
   const people=visiblePeople(); $('.dock').setAttribute('aria-label',`Mitarbeitenden-Dock, ${people.length} im Einsatz`);
-  document.querySelectorAll('.token-hours').forEach(label=>{const state=dockHourAnimations.get(label);if(state?.frame)cancelAnimationFrame(state.frame);});
+  document.querySelectorAll('.token-hours').forEach(label=>{const state=dockHourAnimations.get(label);if(state?.frame)cancelAnimationFrame(state.frame);state?.fade?.cancel();});
   $('#tokens').innerHTML=people.map(p=>`<button class="token ${picked===p.id?'selected':''}" draggable="true" data-person="${esc(p.id)}" style="--person:${p.color}" aria-label="${esc(p.name)}, ${hours(p.hours)}, einplanen"><span class="dot"></span><strong>${esc(p.name)}</strong><time data-day-hours="${esc(dockHoursRange(p))}"><span class="token-hours">${hours(p.hours)}</span></time></button>`).join('');
   document.querySelectorAll('.token').forEach(el=>{
     el.ondragstart=e=>{drag={kind:'person',id:el.dataset.person};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';closePanel();};

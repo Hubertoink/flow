@@ -4,6 +4,8 @@ const {app}=require('electron');
   app.setPath('userData',process.env.FLOW_SMOKE_USER_DATA);
   try{
     const window=await ready;
+    // Run animation/layout checks independently of the user's mouse and window focus.
+    window.webContents.setBackgroundThrottling(false);window.hide();
     if(window.getTitle()!=='Flow!')throw new Error('Incorrect desktop title');
     await new Promise((resolve,reject)=>{
       if(!window.webContents.isLoading())return resolve();

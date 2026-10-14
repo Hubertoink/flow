@@ -569,8 +569,17 @@ assert.equal(bw.document.documentElement.style.getPropertyValue('--background-im
     run('updateDockHours(dateKey(addDays(week,1)))');advance(16);
     if(seen.at(-1)!==aq('.token-hours').textContent)seen.push(aq('.token-hours').textContent);
   }
-  assert.deepEqual(seen,['8 h','7,75 h','7,5 h','7,25 h','7 h','6,75 h','6,5 h','6,25 h']);
-  run('updateDockHours(dateKey(addDays(week,2)))');advance(110);
+  assert.deepEqual(seen,['8 h','7,5 h','7 h','6,75 h','6,25 h']);
+  // Large changes have the same quiet pace and at most three intermediate labels.
+  run('updateDockHours(dateKey(addDays(week,3)),false);updateDockHours(dateKey(week))');
+  const changes=[];
+  for(let i=0;i<30;i++){advance(16);if(changes.at(-1)!==value())changes.push(value());}
+  assert.equal(changes.at(-1),8);assert.ok(changes.length<=5);
+  assert.ok(changes.every((v,i)=>i===0||v>=changes[i-1]));
+  // Briefly crossing a day does not flash its number.
+  run('updateDockHours(dateKey(addDays(week,1)))');advance(32);assert.equal(value(),8);
+  run('updateDockHours(dateKey(week))');advance(160);assert.equal(value(),8);
+  run('updateDockHours(dateKey(addDays(week,1)),false);updateDockHours(dateKey(addDays(week,2)))');advance(180);
   const interrupted=value();assert.ok(interrupted>6.25&&interrupted<10.5);
   run('updateDockHours(dateKey(addDays(week,3)))');assert.equal(value(),interrupted);
   let last=interrupted;
