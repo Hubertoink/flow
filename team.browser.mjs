@@ -57,8 +57,18 @@ export async function runBrowserTests({url,email,password}){
       assert.equal(await page.locator('#team-status').getAttribute('data-tooltip'),'Gespeichert');
       assert(await node.evaluate(el=>el.isConnected),'Save acknowledgement must preserve the rendered shift');
     }finally{releaseSave();await page.unroute('**/api/plan/commands',delaySave);}
-    await page.locator(`[data-shift="${ownShift}"]`).hover();await page.locator(`[data-shift="${ownShift}"] .team-shift-lock`).click();await page.locator('#team-shift-lock').selectOption('times');
+    const lockButton=()=>page.locator(`[data-shift="${ownShift}"] .team-shift-lock`),lockMenu=page.locator('#team-shift-lock-menu');
+    await lockButton().click();assert.equal(await lockMenu.locator('[aria-checked=true]').count(),1);assert.equal(await lockMenu.locator('[data-lock=open]').getAttribute('aria-checked'),'true');
+    assert(!await page.locator('#modal').isVisible());assert.equal(await lockMenu.locator('select').count(),0);
+    const anchorRect=await lockButton().boundingBox(),menuRect=await lockMenu.boundingBox();assert(Math.abs(menuRect.y-anchorRect.y-anchorRect.height-6)<1,'Menu sits directly below the lock icon');
+    await page.screenshot({path:'.flow-local/shift-lock-menu.png',fullPage:true});
+    await page.keyboard.press('Escape');assert.equal(await lockMenu.count(),0);assert(await lockButton().evaluate(el=>el===document.activeElement));
+    await lockButton().click();await lockButton().click();assert.equal(await lockMenu.count(),0,'Clicking the icon again closes the menu');
+    await lockButton().click();await page.locator('.footer-label').click();assert.equal(await lockMenu.count(),0);
+    await lockButton().click();await lockMenu.locator('[data-lock=times]').click();
     await page.waitForFunction(id=>data.shifts.find(s=>s.id===id)?.lock==='times'&&!document.body.classList.contains('team-saving'),ownShift);
+    await lockButton().click();assert.equal(await lockMenu.locator('[aria-checked=true]').count(),1);assert.equal(await lockMenu.locator('[data-lock=times]').getAttribute('aria-checked'),'true');
+    await page.keyboard.press('ArrowDown');assert.equal(await page.evaluate(()=>document.activeElement.dataset.lock),'all');await page.keyboard.press('Home');assert.equal(await page.evaluate(()=>document.activeElement.dataset.lock),'open');await page.keyboard.press('Escape');
     await page.locator(`[data-shift="${ownShift}"] .shift-edit`).click();await page.locator('[data-type=flex]').click();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));await page.locator('#task-label').fill('Browser-Aufgabe');await page.locator('#task-label').press('Tab');
     await page.waitForFunction(()=>data.shifts.some(s=>s.segments.some(t=>t.label==='Browser-Aufgabe'))&&!document.body.classList.contains('team-saving'));
     await page.locator('#toolkit-form .primary-button').click();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));

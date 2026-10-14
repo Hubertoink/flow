@@ -24,7 +24,7 @@ Benutzerfunktionen befinden sich im **Benutzericon neben Einstellungen, rechts v
 3. Über **Benutzericon → Team & Zugänge → Person einladen** Marc auswählen, E-Mail eintragen und Rechte vergeben. In der Rechtezeile des Bufdi bei Bedarf Anlegen, Ändern, Löschen und Aufgaben aktivieren.
 4. Den Einladungslink in einem privaten Browserfenster öffnen. Dadurch bleiben Admin- und Mitarbeitersitzung voneinander getrennt.
 5. Mit Marc eigene Schichten und Schichten für den Bufdi planen. Änderungen an anderen Personen werden serverseitig abgewiesen.
-6. Als Admin eine Schicht doppelklicken und **Zeiten fixiert** wählen. Marc kann Aufgaben innerhalb der Schicht bearbeiten, aber ihre Arbeitszeiten nicht verändern.
+6. Als Admin das Schlüsselicon der Schicht anklicken und im Menü direkt darunter **Zeiten fixiert** wählen. Genau ein Häkchen zeigt den aktuellen Zustand; ein Klick auf eine andere Option übernimmt sie. Marc kann Aufgaben innerhalb der Schicht bearbeiten, aber ihre Arbeitszeiten nicht verändern.
 7. Eine Aufgabe öffnen und **Verbindliche Aufgabe** aktivieren. Auch innerhalb einer sonst flexiblen Schicht kann diese Zuordnung nicht verändert oder gelöscht werden.
 8. Über **Weitere Optionen → Wochenzeiten fixieren** eine Woche schützen. Das verhindert auch neue Schichten an noch leeren Tagen.
 9. Zwei Browserfenster bearbeiten denselben Plan. Flow! aktualisiert freie Ansichten alle fünf Sekunden. Ein veralteter Bearbeitungsstand wird abgewiesen; die Meldung bietet Aktualisieren an.

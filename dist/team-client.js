@@ -100,7 +100,8 @@
       element.classList.toggle('team-readonly',!!timeReason(s));
       if(admin()&&!element.querySelector('.team-shift-lock')){
         const button=document.createElement('button');button.className='team-shift-lock';button.type='button';button.innerHTML=icon('key');button.setAttribute('aria-label','Fixierung der Schicht ändern');button.dataset.tooltip='Schicht fixieren';
-        button.onpointerdown=e=>e.stopPropagation();button.onkeydown=e=>e.stopPropagation();button.onclick=e=>{e.stopPropagation();showShiftLock(s);};element.append(button);
+        button.setAttribute('aria-haspopup','menu');button.setAttribute('aria-expanded','false');
+        button.onpointerdown=e=>e.stopPropagation();button.onkeydown=e=>{e.stopPropagation();if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();showShiftLock(s,button);}};button.onclick=e=>{e.stopPropagation();showShiftLock(s,button);};element.append(button);
       }
       const lockText=s.lock==='all'?'Vollständig fixiert':s.lock==='times'?'Zeiten fixiert':period(s.date)?.timesLocked?'Wochenzeiten fixiert':'';
       element.querySelector('.team-lock-label')?.remove();if(lockText)element.insertAdjacentHTML('beforeend',`<span class="team-lock-label">${icon('lock')}${lockText}</span>`);
@@ -127,9 +128,34 @@
       panel.querySelector('#team-pin-assignment').onchange=e=>administrative(`/api/shifts/${s.id}/assignments/${t.id}/lock`,{expectedRevision:state.revision,locked:e.target.checked});
     }
   };
-  function showShiftLock(s){
-    modal('Schicht fixieren',`<p class="modal-note">Zeiten fixieren lässt die Aufgabenplanung frei. Vollständig fixieren schützt auch die Aufgaben.</p><label><span class="field-label">Fixierung</span><select id="team-shift-lock"><option value="open">Offen</option><option value="times">Zeiten fixiert</option><option value="all">Vollständig fixiert</option></select></label><p class="modal-note">${period(s.date)?.timesLocked?'Die Wochenzeiten sind zusätzlich fixiert.':''}</p>`,{wide:false});
-    const input=document.querySelector('#team-shift-lock');input.value=s.lock||'open';input.onchange=action(async()=>{await administrative(`/api/shifts/${s.id}/lock`,{expectedRevision:state.revision,lock:input.value});document.querySelector('#modal-close')?.click();});
+  let shiftLockMenu=null;
+  function showShiftLock(s,anchor){
+    if(shiftLockMenu?.anchor===anchor){shiftLockMenu.close(true);return;}
+    shiftLockMenu?.close();closePanel();closeMenu();
+    const menu=document.createElement('div'),events=new AbortController();
+    menu.id='team-shift-lock-menu';menu.className='team-shift-lock-menu';menu.popover='manual';menu.setAttribute('role','menu');menu.setAttribute('aria-label','Schicht fixieren');
+    const options=[['open','Offen','Arbeitszeiten und Aufgaben frei'],['times','Zeiten fixiert','Aufgaben bleiben bearbeitbar'],['all','Vollständig fixiert','Arbeitszeiten und Aufgaben geschützt']];
+    menu.innerHTML=options.map(([value,label,hint])=>`<button type="button" role="menuitemradio" aria-checked="${(s.lock||'open')===value}" data-lock="${value}" tabindex="-1"><span class="team-lock-check" aria-hidden="true">✓</span><span><strong>${label}</strong><small>${hint}</small></span></button>`).join('')+(period(s.date)?.timesLocked?'<p>Die Wochenzeiten sind zusätzlich fixiert.</p>':'');
+    const close=(focus=false)=>{events.abort();observer.disconnect();if(menu.matches(':popover-open'))menu.hidePopover();menu.remove();anchor.setAttribute('aria-expanded','false');anchor.removeAttribute('aria-controls');if(shiftLockMenu?.anchor===anchor)shiftLockMenu=null;if(focus&&anchor.isConnected)anchor.focus({preventScroll:true});};
+    const observer=new MutationObserver(()=>{if(!anchor.isConnected)close();});
+    shiftLockMenu={anchor,close};document.body.append(menu);anchor.setAttribute('aria-controls',menu.id);anchor.setAttribute('aria-expanded','true');menu.showPopover();
+    const rect=anchor.getBoundingClientRect(),margin=8;
+    menu.style.left=Math.max(margin,Math.min(rect.right-menu.offsetWidth,innerWidth-menu.offsetWidth-margin))+'px';
+    menu.style.top=(rect.bottom+6+menu.offsetHeight<=innerHeight-margin?rect.bottom+6:Math.max(margin,rect.top-menu.offsetHeight-6))+'px';
+    const buttons=[...menu.querySelectorAll('[data-lock]')];buttons.find(button=>button.getAttribute('aria-checked')==='true').focus({preventScroll:true});
+    menu.addEventListener('toggle',event=>{if(event.newState==='closed')close();},{signal:events.signal});
+    menu.addEventListener('keydown',event=>{
+      if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close(true);return;}
+      const index=buttons.indexOf(document.activeElement),step={ArrowDown:1,ArrowUp:-1}[event.key];
+      const target=event.key==='Home'?0:event.key==='End'?buttons.length-1:step?(index+step+buttons.length)%buttons.length:null;
+      if(target!==null){event.preventDefault();buttons[target].focus();}
+    },{signal:events.signal});
+    menu.addEventListener('focusout',event=>{if(event.relatedTarget&&!menu.contains(event.relatedTarget)&&event.relatedTarget!==anchor)close();},{signal:events.signal});
+    buttons.forEach(button=>button.onclick=async()=>{const lock=button.dataset.lock;if(lock===(s.lock||'open')){close(true);return;}close();await administrative(`/api/shifts/${s.id}/lock`,{expectedRevision:state.revision,lock});document.querySelector(`[data-shift="${s.id}"] .team-shift-lock`)?.focus({preventScroll:true});});
+    window.addEventListener('resize',()=>close(),{signal:events.signal});
+    document.addEventListener('pointerdown',event=>{if(!menu.contains(event.target)&&!anchor.contains(event.target))close();},{capture:true,signal:events.signal});
+    document.addEventListener('scroll',event=>{if(!menu.contains(event.target))close();},{capture:true,signal:events.signal});
+    observer.observe(document.querySelector('#timeline'),{childList:true,subtree:true});
   }
   team.decorateActivity=(a,panel)=>{
     if(!admin()&&!state.member.permissions.manageActivities)panel.querySelectorAll('#activity-name,#activity-start,#activity-end,#activity-delete,#activity-form .primary-button').forEach(el=>el.disabled=true);
