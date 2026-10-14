@@ -9,6 +9,7 @@ import {emptyPlan,entitySchemas,mondayKey} from './server/model.mjs';
 import {defaultPermissions} from './server/policy.mjs';
 import {runBrowserTests} from './team.browser.mjs';
 import {testBackup} from './scripts/test-backup.mjs';
+import packageInfo from './package.json' with {type:'json'};
 
 if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL für die Testdatenbank-Verbindung fehlt.');
 const control=createPool(process.env.DATABASE_URL),databaseName='flow_test_'+randomUUID().replaceAll('-','');
@@ -35,6 +36,7 @@ try{
   await admin.call('/api/setup',{token:config.setupToken,organization:'Testteam',name:'Admin Test',email:'admin@example.org',password},'POST',201);
   await admin.call('/api/setup',{token:config.setupToken,organization:'Other',name:'Other',email:'other@example.org',password},'POST',409);
   await admin.call('/api/auth/sign-in/email',{email:'admin@example.org',password});snapshot=await admin.call('/api/bootstrap');
+  assert.equal(snapshot.version,packageInfo.version,'The displayed version must identify the running release');
   const adminMember=snapshot.member;
   await admin.call('/api/team/'+adminMember.userId,{personId:adminMember.personId,role:'member',active:true,permissions:defaultPermissions()},'PATCH',409);
   const marc=person('marc-test','Marc'),bufdi=person('bufdi-test','Bufdi'),lee=person('lee-test','Lee');

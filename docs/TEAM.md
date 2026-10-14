@@ -15,7 +15,7 @@ Flow! öffnest du anschließend unter **http://localhost:4174**. App, Datenbank 
 
 Beim ersten Aufruf legst du Einrichtung und Admin-Konto an. Der Einrichtungsschlüssel steht als `FLOW_SETUP_TOKEN` in `.flow-local/config.env`. Diese Datei enthält auch die getrennten zufälligen Datenbank- und Auth-Geheimnisse und ist von Git und Docker-Builds ausgeschlossen. Nach erfolgreicher Einrichtung lässt sich kein zweiter Ersteinrichtungsversuch durchführen. Ein Container-Neustart setzt die Einrichtung nicht zurück.
 
-Benutzerfunktionen befinden sich im **Benutzericon neben Einstellungen, rechts von Heute**. Wochenfreigabe und Wochensperre stehen im vorhandenen Menü **Weitere Optionen**. Die kleine Anzeige im Fußbereich zeigt den Speicherstatus sowie gegebenenfalls Veröffentlichung und Zeitsperre. Unveröffentlichte Wochen haben kein zusätzliches „Entwurf“-Badge.
+Benutzerfunktionen befinden sich im **Benutzericon neben Einstellungen, rechts von Heute**. Wochenfreigabe und Wochensperre stehen im vorhandenen Menü **Weitere Optionen**. Im Fußbereich stehen ein Speichericon mit Status-Tooltip und die laufende App-Version sowie gegebenenfalls Veröffentlichung und Zeitsperre. Unveröffentlichte Wochen haben kein zusätzliches „Entwurf“-Badge. Der Änderungsverlauf zeigt Aktion, Person und Zeitpunkt in kompakten Zeilen; Details und Rückgängig bleiben direkt erreichbar.
 
 ## Erster Testablauf
 

@@ -9,6 +9,7 @@ import {permissionsSchema,defaultPermissions,visiblePlan,canViewDate,canViewPers
 import {transaction,workspace,loadPlan,getPeriods,getMember,audit,bump,writeChanges} from './database.mjs';
 import {passwordHash,provisionUser} from './auth.mjs';
 import {applyCommands,undoCommand} from './planning.mjs';
+import packageInfo from '../package.json' with {type:'json'};
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
 const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -44,7 +45,7 @@ export function createApp({pool,auth,mail,config}){
   const admin=(req,res,next)=>req.member.role==='admin'?next():next(new FlowError(403,'Diese Funktion ist für Admins vorgesehen.'));
   const snapshot=async(db,userId)=>{
     const member=await getMember(db,userId),ws=await workspace(db),plan=await loadPlan(db),periods=await getPeriods(db),preferences=(await db.query('SELECT payload FROM flow_preferences WHERE user_id=$1',[userId])).rows[0]?.payload||{};
-    return {member,organization:ws.name,revision:Number(ws.revision),plan:visiblePlan(plan,member,periods),periods:member.role==='admin'||member.permissions.viewDrafts?periods:periods.filter(p=>p.published),preferences,localMail:config.localMail,mailConfigured:mail.configured};
+    return {version:packageInfo.version,member,organization:ws.name,revision:Number(ws.revision),plan:visiblePlan(plan,member,periods),periods:member.role==='admin'||member.permissions.viewDrafts?periods:periods.filter(p=>p.published),preferences,localMail:config.localMail,mailConfigured:mail.configured};
   };
   app.get('/health',route(async(req,res)=>{await pool.query('SELECT 1');res.json({status:'ok'});}));
   app.get('/api/status',route(async(req,res)=>{res.json({ready:(await workspace(pool)).ready});}));

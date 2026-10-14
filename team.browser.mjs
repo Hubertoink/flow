@@ -13,6 +13,9 @@ export async function runBrowserTests({url,email,password}){
     page.on('pageerror',error=>errors.push(error.message));
     await page.goto(url);await page.getByLabel('E-Mail',{exact:true}).fill(email);await page.getByLabel('Passwort',{exact:true}).fill(password);await page.getByRole('button',{name:'Anmelden',exact:true}).click();
     await page.locator('#team-user-toggle').waitFor();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+    assert.equal(await page.locator('#team-version').textContent(),await page.evaluate(()=>'v'+flowTeam.bootstrap.version));
+    assert.equal(await page.locator('#team-status svg').count(),1);
+    await page.locator('#team-status').focus();await page.waitForFunction(()=>!document.querySelector('#flow-tooltip').hidden&&document.querySelector('#flow-tooltip').textContent==='Gespeichert');
     await page.locator('#settings-button').click();await page.locator('#settings-tab-breaks').click();await page.locator('#break-form .primary-button').click();
     await page.waitForFunction(()=>document.querySelector('#toast')?.matches(':popover-open'));
     assert(await page.locator('#modal #toast').isVisible());
@@ -37,10 +40,12 @@ export async function runBrowserTests({url,email,password}){
       await page.mouse.move(rect.x+rect.width/2,rect.y+22);await page.mouse.down();
       await page.mouse.move(rect.x+rect.width/2+50,rect.y+22,{steps:8});await page.mouse.up();
       await page.waitForFunction(()=>document.body.classList.contains('team-saving'));
+      assert.equal(await page.locator('#team-status').getAttribute('data-tooltip'),'Wird gespeichert …');
       assert.equal(await page.locator('#app').evaluate(el=>getComputedStyle(el).opacity),'1','Saving must not fade the canvas');
       assert.notEqual(await page.evaluate(id=>getShift(id).start,ownShift),start);
       const node=await shift.elementHandle();
       releaseSave();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+      assert.equal(await page.locator('#team-status').getAttribute('data-tooltip'),'Gespeichert');
       assert(await node.evaluate(el=>el.isConnected),'Save acknowledgement must preserve the rendered shift');
     }finally{releaseSave();await page.unroute('**/api/plan/commands',delaySave);}
     await page.locator(`[data-shift="${ownShift}"]`).hover();await page.locator(`[data-shift="${ownShift}"] .team-shift-lock`).click();await page.locator('#team-shift-lock').selectOption('times');
@@ -56,6 +61,12 @@ export async function runBrowserTests({url,email,password}){
     await page.locator('#toast button').click();
     await page.waitForFunction(id=>getShift(id)?.segments.some(t=>t.label==='Browser-Aufgabe')&&!document.body.classList.contains('team-saving'),ownShift);
     assert(await page.locator(`[data-shift="${ownShift}"] .team-lock-label`).isVisible());
+    await page.locator('#team-user-toggle').click();await page.locator('#team-history').click();await page.locator('.team-audit-entry').first().waitFor();
+    await page.screenshot({path:'.flow-local/audit-compact.png',fullPage:true});
+    await page.setViewportSize({width:390,height:844});
+    assert(await page.locator('#modal').evaluate(el=>el.scrollWidth<=el.clientWidth),'History must fit a narrow viewport');
+    await page.screenshot({path:'.flow-local/audit-compact-mobile.png',fullPage:true});
+    await page.setViewportSize({width:1280,height:720});await page.locator('#modal-close').click();
     await page.locator('#more').click();await page.locator('[data-action=image]').click();const pngDownload=page.waitForEvent('download');await page.locator('#start-export').click();const png=await pngDownload;assert(png.suggestedFilename().endsWith('.png'));await page.locator('#export-form').waitFor({state:'hidden'});
     await page.reload();await page.locator('#team-user-toggle').waitFor();
     await page.locator('#team-user-toggle').click();await page.locator('#team-management').click();await page.getByRole('button',{name:'Rechte & Konto'}).first().waitFor();
