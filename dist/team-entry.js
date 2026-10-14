@@ -1,4 +1,5 @@
 (() => {
+  const releaseVersion=new URL(document.currentScript?.src||location.href).searchParams.get('v');
   const entry=document.querySelector('#team-entry');
   const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   async function request(url,body){const response=await fetch(url,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,credentials:'same-origin'});const result=await response.json();if(!response.ok)throw new Error(result.message||'Die Anfrage ist fehlgeschlagen.');return result;}
@@ -29,10 +30,11 @@
   async function script(src){await new Promise((resolve,reject)=>{const element=document.createElement('script');element.src=src;element.onload=resolve;element.onerror=()=>reject(new Error('Die Oberfläche konnte nicht geladen werden.'));document.body.append(element);});}
   async function launch(){
     const bootstrap=await request('/api/bootstrap');
-    const response=await fetch('/app-shell');if(!response.ok)throw new Error('Die Planungsoberfläche konnte nicht geladen werden.');
+    const response=await fetch('/app-shell',{cache:'no-store'});if(!response.ok)throw new Error('Die Planungsoberfläche konnte nicht geladen werden.');
     const shell=new DOMParser().parseFromString(await response.text(),'text/html');shell.querySelectorAll('script').forEach(s=>s.remove());
     document.body.innerHTML=shell.body.innerHTML;document.title=bootstrap.organization+' · Flow!';window.flowTeam={initialPlan:{...bootstrap.plan,settings:{...bootstrap.plan.settings,...bootstrap.preferences}},bootstrap};
-    for(const src of ['team-client.js','icons.js','app.js','canvas.js','projects.js','vendor/exceljs.min.js','vendor/html-to-image.js','exports.js'])await script(src);
+    const version=releaseVersion||bootstrap.version;
+    for(const src of ['team-client.js','icons.js','app.js','canvas.js','projects.js','vendor/exceljs.min.js','vendor/html-to-image.js','exports.js'])await script(`${src}?v=${encodeURIComponent(version)}`);
     window.flowTeam.init();
   }
   (async()=>{try{const params=new URLSearchParams(location.search),fragment=new URLSearchParams(location.hash.slice(1)),token=fragment.get('invite');if(token)return await invitation(token);if(params.get('token'))return reset(params.get('token'));const status=await request('/api/status');if(!status.ready)return setup();try{await launch();}catch(error){if(document.querySelector('#team-entry'))login();else throw error;}}catch(error){card('Flow! ist gerade nicht erreichbar',`<p>${escape(error.message)}</p><button id="retry-entry" class="primary-button">Erneut versuchen</button>`);document.querySelector('#retry-entry').onclick=()=>location.assign('/');}})();

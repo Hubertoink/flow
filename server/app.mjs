@@ -3,6 +3,7 @@ import {toNodeHandler,fromNodeHeaders} from 'better-auth/node';
 import {randomUUID,randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {readFileSync} from 'node:fs';
 import {z} from 'zod';
 import {id,date,parse,fail,FlowError,entitySchemas,mondayKey,equal} from './model.mjs';
 import {permissionsSchema,defaultPermissions,visiblePlan,canViewDate,canViewPerson} from './policy.mjs';
@@ -12,6 +13,8 @@ import {applyCommands,undoCommand} from './planning.mjs';
 import packageInfo from '../package.json' with {type:'json'};
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
+// New asset URLs bypass caches populated by older releases, even on a normal reload.
+const teamPage=readFileSync(path.join(root,'team.html'),'utf8').replace(/(href|src)="([^"]+\.(?:css|js))"/g,(_,attribute,asset)=>`${attribute}="${asset}?v=${encodeURIComponent(packageInfo.version)}"`);
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const personalSchema=z.object({theme:z.enum(['dark','light','catppuccin']).optional(),background:z.enum(['','car','city','forest','snow']).optional(),saturday:z.boolean().optional(),sunday:z.boolean().optional(),weekend:z.boolean().optional(),zoom:z.number().min(.5).max(2).optional(),hoursTransition:z.enum(['count','fade']).optional(),projectsEnabled:z.boolean().optional(),projectsCollapsed:z.boolean().optional(),projectHeight:z.number().min(140).max(480).optional(),projectWeeks:z.union([z.literal(6),z.literal(12)]).optional()}).strict();
 const email=z.string().trim().toLowerCase().email().max(254),name=z.string().trim().min(1).max(80),password=z.string().min(12).max(128);
@@ -165,9 +168,9 @@ export function createApp({pool,auth,mail,config}){
   app.get('/api/local-mail',admin,route(async(req,res)=>{if(!config.localMail)fail(404,'Lokaler Postausgang ist hier nicht aktiviert.');res.json((await pool.query('SELECT id,recipient,subject,text_body AS text,created_at AS "createdAt",sent_at AS "sentAt",last_error AS "lastError" FROM flow_mail ORDER BY created_at DESC LIMIT 30')).rows);}));
   app.get('/api/mail-status',admin,route(async(req,res)=>res.json({configured:mail.configured,pending:Number((await pool.query('SELECT count(*) FROM flow_mail WHERE sent_at IS NULL')).rows[0].count),failed:Number((await pool.query('SELECT count(*) FROM flow_mail WHERE sent_at IS NULL AND attempts>=5')).rows[0].count)})));
   app.use('/api',(req,res)=>res.status(404).json({message:'Diese Funktion existiert nicht.'}));
-  app.get('/app-shell',signedIn,(req,res)=>res.sendFile(path.join(root,'index.html')));
-  app.get(['/','/index.html'],(req,res)=>res.sendFile(path.join(root,'team.html')));
-  app.use(express.static(root,{index:false,maxAge:config.production?'1h':0}));
+  app.get('/app-shell',signedIn,(req,res)=>{res.set('Cache-Control','no-store');res.sendFile(path.join(root,'index.html'));});
+  app.get(['/','/index.html','/team.html'],(req,res)=>res.set('Cache-Control','no-store').type('html').send(teamPage));
+  app.use(express.static(root,{index:false,maxAge:config.production?'1h':0,setHeaders(res,file){if(/\.(?:css|js|html)$/.test(file))res.setHeader('Cache-Control','no-cache');}}));
   app.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
     const status=error.status||error.type==='entity.too.large'&&413||error.code==='23505'&&409||500;

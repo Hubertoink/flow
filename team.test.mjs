@@ -30,6 +30,15 @@ const person=(id,name)=>entitySchemas.people.parse({id,name,color:'#8cbea7'});
 const shift=(id,person,date=dayAt(0))=>entitySchemas.shifts.parse({id,person,date,start:10,length:8,y:32,segments:[]});
 try{
   await migrateAuth(authOptions(pool,config,mail));await migrate(pool);auth=createAuth(pool,config,mail);server.on('request',createApp({pool,auth,mail,config}));
+  for(const entry of ['/','/index.html','/team.html']){
+    const response=await fetch(config.url+entry),html=await response.text();
+    assert.equal(response.headers.get('cache-control'),'no-store');
+    const assets=[...html.matchAll(/(?:src|href)="([^"]+\.(?:css|js)[^"]*)"/g)].map(match=>new URL(match[1],config.url));
+    assert(assets.length>=6);for(const asset of assets)assert.equal(asset.searchParams.get('v'),packageInfo.version);
+  }
+  for(const asset of ['/team-client.js','/team.css','/team-entry.js?v='+packageInfo.version]){
+    const response=await fetch(config.url+asset);assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-cache');
+  }
   await admin.call('/api/status');await admin.call('/api/bootstrap',undefined,'GET',401);
   await admin.call('/api/auth/sign-up/email',{email:'outsider@example.org',name:'No',password},'POST',404);
   await admin.call('/api/setup',{token:'wrong',organization:'Testteam',name:'Admin Test',email:'admin@example.org',password},'POST',403);

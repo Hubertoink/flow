@@ -8,13 +8,22 @@ export async function runBrowserTests({url,email,password}){
   const browser=await chromium.launch({executablePath,headless:true});
   let activePage,observedErrors=[];
   try{
-    const context=await browser.newContext(),page=await context.newPage(),errors=[];
+    const context=await browser.newContext(),page=await context.newPage(),errors=[],assetRequests=[];
     activePage=page;observedErrors=errors;
     page.on('pageerror',error=>errors.push(error.message));
+    page.on('request',request=>{const asset=new URL(request.url());if(/\.(css|js)$/.test(asset.pathname))assetRequests.push(asset);});
     await page.goto(url);await page.getByLabel('E-Mail',{exact:true}).fill(email);await page.getByLabel('Passwort',{exact:true}).fill(password);await page.getByRole('button',{name:'Anmelden',exact:true}).click();
     await page.locator('#team-user-toggle').waitFor();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
     assert.equal(await page.locator('#team-version').textContent(),await page.evaluate(()=>'v'+flowTeam.bootstrap.version));
     assert.equal(await page.locator('#team-status svg').count(),1);
+    const releaseVersion=await page.evaluate(()=>flowTeam.bootstrap.version);
+    assert(assetRequests.length>=10);for(const asset of assetRequests)assert.equal(asset.searchParams.get('v'),releaseVersion,'Every stylesheet and script must bypass legacy cached URLs');
+    for(const width of [1920,1366,1000,800]){
+      await page.setViewportSize({width,height:900});
+      await page.waitForFunction(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth&&document.documentElement.scrollHeight<=document.documentElement.clientHeight);
+    }
+    await page.setViewportSize({width:1366,height:768});await page.screenshot({path:'.flow-local/footer-version.png',fullPage:true});
+    await page.setViewportSize({width:1280,height:720});
     await page.locator('#team-status').focus();await page.waitForFunction(()=>!document.querySelector('#flow-tooltip').hidden&&document.querySelector('#flow-tooltip').textContent==='Gespeichert');
     await page.locator('#settings-button').click();await page.locator('#settings-tab-breaks').click();await page.locator('#break-form .primary-button').click();
     await page.waitForFunction(()=>document.querySelector('#toast')?.matches(':popover-open'));
