@@ -34,6 +34,32 @@ const dom=boot(),w=dom.window,d=w.document,q=s=>d.querySelector(s),all=s=>[...d.
 }
 assert.equal(all('.shift').length,0);assert.equal(all('.person-name').length,0);assert.equal(all('.token').length,4);assert.equal(q('.token time').textContent,'8 h');assert.equal(q('.save-status'),null);assert.equal(all('#settings-button svg').length,1);assert.equal(q('#settings-button').closest('.header-actions')!==null,true);assert.equal(q('#dock-toggle'),null);
 {
+  const clickDom=boot(),cw=clickDom.window,cq=s=>cw.document.querySelector(s),run=code=>cw.runCanvasCode(code);
+  run(`data.shifts=[
+    {id:'click-empty',person:'lea',date:dateKey(week),start:10,length:4,y:32,segments:[]},
+    {id:'click-task',person:'niko',date:dateKey(week),start:10,length:4,y:88,segments:[{id:'click-admin',type:'admin',offset:0,duration:2}]}
+  ];persist();refresh()`);
+  const before=cw.localStorage.getItem('flow-plan-v1');
+  cq('[data-shift="click-empty"]').click();assert.equal(run('editing'),'click-empty');
+  assert.equal(cq('[data-shift="click-empty"] .shift-edit').getAttribute('aria-pressed'),'true');
+  cq('[data-shift="click-empty"]').click();assert.equal(run('editing'),'click-empty');
+  cq('[data-task="click-admin"] .task-caption').click();assert.equal(run('editing'),'click-task');
+  assert.equal(cq('[data-shift="click-empty"]').classList.contains('editing'),false);
+  assert.equal(cq('#detail').hidden,true);
+  cq('[data-task="click-admin"]').click();assert.equal(cq('#detail').hidden,false);
+  cq('[data-shift="click-task"] .shift-edit').click();assert.equal(run('editing'),null);
+  // An actual move suppresses its trailing click; dragging must not open a shift.
+  const el=cq('[data-shift="click-empty"]');el.parentElement.getBoundingClientRect=()=>({width:1200});
+  el.getBoundingClientRect=()=>({left:0,right:1200,top:0,bottom:44});
+  cw.document.elementFromPoint=()=>el.parentElement;
+  el.onpointerdown({button:0,currentTarget:el,target:el,pointerId:1,clientX:100,clientY:20});
+  cw.document.dispatchEvent(new cw.MouseEvent('pointermove',{clientX:120,clientY:20,bubbles:true,cancelable:true}));
+  cw.document.dispatchEvent(new cw.Event('pointercancel'));
+  cq('[data-shift="click-empty"]').click();assert.equal(run('editing'),null);
+  assert.equal(cw.localStorage.getItem('flow-plan-v1'),before);
+  cw.close();
+}
+{
   const layoutDom=boot(),lw=layoutDom.window,ld=lw.document,run=code=>lw.runCanvasCode(code);
   run(`data.shifts=[
     {id:'fixed',person:'lea',date:dateKey(week),start:10,length:4,y:200,segments:[]},

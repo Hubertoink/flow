@@ -5,6 +5,12 @@ kopierbaren Teilschichten und Ist-/Sollstunden.
 
 ## Oberfläche
 
+Ein Klick auf eine Schicht öffnet ihren Bearbeitungsmodus, auch beim Klick auf
+ein enthaltenes Aufgabensegment. Weitere Klicks auf den Schichthintergrund lassen
+sie geöffnet; ein Klick auf eine Aufgabe öffnet dann deren Details. Das
+Bearbeitungsicon bleibt zum Öffnen und Schließen erhalten. Ziehen und
+Größenänderungen öffnen die Schicht nicht versehentlich.
+
 Schichten eines Tages stehen kompakt untereinander mit 12 Pixeln Abstand,
 ohne große Leerstellen. Vertikales Ziehen bestimmt die Reihenfolge: oberhalb
 oder unterhalb einer anderen Schicht. Die anderen Schichten rücken mit;

@@ -77,7 +77,15 @@ const {app}=require('electron');
       if(!pasted||pasted.date!==dateKey(addDays(week,6))||pasted.segments[0].id==='week-smoke-task')throw new Error('Week drop did not preserve Sunday or renew task IDs');
       document.querySelector('#toast button').click();
       if(data.shifts.length!==1)throw new Error('Week paste undo failed');
-      document.querySelector('#dismiss-copy').click();data.shifts=beforeWeekCopy;week=sourceWeek;persist();refresh();
+      document.querySelector('#dismiss-copy').click();
+      week=sourceWeek;data.shifts[0].date=dateKey(week);persist();refresh();
+      document.querySelector('[data-shift="week-smoke"] .segment').click();
+      if(editing!=='week-smoke'||!document.querySelector('[data-shift="week-smoke"].editing'))throw new Error('Clicking a shift did not open editing');
+      document.querySelector('[data-shift="week-smoke"]').click();
+      if(editing!=='week-smoke')throw new Error('Clicking an open shift should keep it open');
+      document.querySelector('[data-shift="week-smoke"] .shift-edit').click();
+      if(editing!==null)throw new Error('Edit icon no longer closes the shift');
+      data.shifts=beforeWeekCopy;week=sourceWeek;persist();refresh();
       if(!document.querySelector('.brand-logo').naturalWidth)throw new Error('Logo did not load');
       for(const background of backgrounds){
         const image=new Image();image.src='assets/'+background.file;await image.decode();
