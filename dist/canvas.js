@@ -80,7 +80,7 @@ const dockDate=()=>focusDate||(todayKey()>=dateKey(week)&&todayKey()<=dateKey(ad
 const newShiftLength=(person,date)=>weekdayHours(person,date)===0?3:attendanceHours(weekdayHours(person,date));
 function updateDockHours(date=dockDate()){
   const day=weekdays[(parseDate(date).getDay()+6)%7];
-  document.querySelectorAll('.token').forEach(token=>{const person=data.people.find(person=>person.id===token.dataset.person),amount=weekdayHours(person,date),length=newShiftLength(person,date);token.querySelector('time').textContent=hours(amount);token.classList.toggle('off-day',amount===0);token.title=amount===0?`${day}: 0 h Soll · neue Schicht mit ${hours(length)} Anwesenheit`:`${day}: ${hours(amount)} netto · ${hours(length)} Anwesenheit inkl. Pause`;token.setAttribute('aria-label',`${person.name}, ${day}, ${hours(amount)}${amount===0?`, neue Schicht ${hours(length)}`:''}, einplanen`);});
+  document.querySelectorAll('.token').forEach(token=>{const person=data.people.find(person=>person.id===token.dataset.person),amount=weekdayHours(person,date),length=newShiftLength(person,date);token.querySelector('.token-hours').textContent=hours(amount);token.classList.toggle('off-day',amount===0);token.title=amount===0?`${day}: 0 h Soll · neue Schicht mit ${hours(length)} Anwesenheit`:`${day}: ${hours(amount)} netto · ${hours(length)} Anwesenheit inkl. Pause`;token.setAttribute('aria-label',`${person.name}, ${day}, ${hours(amount)}${amount===0?`, neue Schicht ${hours(length)}`:''}, einplanen`);});
 }
 const taskPalette=['#c482b9','#dba8c4','#e6a6ae','#e8b39d','#e6b078','#e6c58b','#dfd498','#c5cf9b','#a9c49a','#8cbea7','#8dbfb9','#91c5ce','#85b9e2','#9aafe0','#aaa4dd','#b9a5eb','#c4b1d9','#bdadb1','#adbcc7','#c5cdd7'];
 const taskColor=t=>/^#[0-9a-f]{6}$/i.test(t.color||'')?t.color:task(t.type).color;
@@ -96,7 +96,7 @@ function isoWeek(d){const v=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.get
 function refresh(){renderDock();renderTimeline();}
 function renderDock(){
   const people=visiblePeople(); $('.dock').setAttribute('aria-label',`Mitarbeitenden-Dock, ${people.length} im Einsatz`);
-  $('#tokens').innerHTML=people.map(p=>`<button class="token ${picked===p.id?'selected':''}" draggable="true" data-person="${esc(p.id)}" style="--person:${p.color}" aria-label="${esc(p.name)}, ${hours(p.hours)}, einplanen"><span class="dot"></span><strong>${esc(p.name)}</strong><time>${hours(p.hours)}</time></button>`).join('');
+  $('#tokens').innerHTML=people.map(p=>`<button class="token ${picked===p.id?'selected':''}" draggable="true" data-person="${esc(p.id)}" style="--person:${p.color}" aria-label="${esc(p.name)}, ${hours(p.hours)}, einplanen"><span class="dot"></span><strong>${esc(p.name)}</strong><time data-day-hours="${esc(p.weekdayHours.map(hours).join('\n'))}"><span class="token-hours">${hours(p.hours)}</span></time></button>`).join('');
   document.querySelectorAll('.token').forEach(el=>{
     el.ondragstart=e=>{drag={kind:'person',id:el.dataset.person};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';closePanel();};
     el.ondragend=clearDrop;

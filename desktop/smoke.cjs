@@ -30,6 +30,20 @@ const {app}=require('electron');
           if(scroll.scrollHeight>scroll.clientHeight)throw new Error('Empty canvas has vertical overflow at zoom '+value+': '+scroll.scrollHeight+'/'+scroll.clientHeight);
         }
         setZoom(1);await settle();
+        const originalDayHours=data.people.map(p=>[...p.weekdayHours]);
+        data.people.forEach((p,i)=>p.weekdayHours=i===0?[8,6.25,10.5,0,9.75,12,16]:[8,8,8,8,8,0,0]);
+        refresh();await document.fonts.ready;await settle();
+        const dockBounds=()=>[...document.querySelectorAll('.token')].map(el=>{const r=el.getBoundingClientRect(),t=el.querySelector('time').getBoundingClientRect();return [r.left,r.top,r.width,t.width];});
+        const stableBounds=JSON.stringify(dockBounds());
+        for(let day=0;day<7;day++){
+          updateDockHours(dateKey(addDays(week,day)));await settle();
+          if(JSON.stringify(dockBounds())!==stableBounds)throw new Error('Employee pills moved when showing hours for weekday '+day+': '+stableBounds+' -> '+JSON.stringify(dockBounds()));
+          const label=document.querySelector('.token-hours');
+          if(label.textContent!==hours(data.people[0].weekdayHours[day]))throw new Error('Dynamic employee hours did not update');
+          if(label.getBoundingClientRect().width>label.parentElement.getBoundingClientRect().width+.01)throw new Error('Employee hours exceed their reserved width');
+        }
+        if(document.querySelectorAll('.token time')[1].getBoundingClientRect().width>=document.querySelector('.token time').getBoundingClientRect().width)throw new Error('Pill widths should follow each individual work schedule');
+        data.people.forEach((p,i)=>p.weekdayHours=originalDayHours[i]);refresh();await settle();
         const head=document.querySelector('.day-head').getBoundingClientRect(),title=document.querySelector('.day-title').getBoundingClientRect(),times=document.querySelector('.hours').getBoundingClientRect();
         if(head.height!==60||title.top-head.top>12||times.top-title.bottom<10)throw new Error('Incorrect compact day header spacing');
         const original=data.shifts;
