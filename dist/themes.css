@@ -85,7 +85,7 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
 .shift.editing .task-resize:hover:after{opacity:1}
 .shift.editing .task-caption{padding-left:7px;padding-right:30px}
 button:focus-visible,a:focus-visible,.segment:focus-visible{outline-color:var(--accent)}
-.desktop .topbar{app-region:drag;padding-right:145px}
+.desktop .topbar{app-region:drag;height:84px;padding-top:36px;padding-right:0}
 .desktop .topbar button,.desktop .topbar a,.desktop .dropdown{app-region:no-drag}
 @media print {
   body{background:#fff;color:#111}

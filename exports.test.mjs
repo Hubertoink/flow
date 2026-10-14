@@ -220,5 +220,17 @@ w.openPlanImport();await chooseImport('{broken');assert.equal(q('#confirm-plan-i
 q('#restore-before-import').click();q('#accept-plan-replacement').click();await chooseImport(candidateText);
 assert.equal(q('#plan-import-file').required,true);assert.equal(q('#confirm-plan-import').textContent,'Plan ersetzen');assert.equal(q('#confirm-plan-import').disabled,true);
 q('#modal').close();w.console.error=originalConsoleError;
+w.runExportCode(`createActivity('prep',dateKey(week),10)`);
+const activityTransfer=w.readPlanTransfer(JSON.stringify(w.runExportCode('planTransfer()')));
+assert.ok(activityTransfer.plan.activities.some(a=>a.explicit&&a.type==='prep'));
+const agendaSnapshot=w.weeklyExportSnapshot(false);
+w.runExportCode(`data.activities.find(a=>a.type==='prep'&&a.explicit).label='Nach Snapshot geändert'`);
+const agendaWorkbook=w.buildWeeklyWorkbook(agendaSnapshot),agendaRoundtrip=new ExcelJS.Workbook();await agendaRoundtrip.xlsx.load(await agendaWorkbook.xlsx.writeBuffer());
+const agendaSheet=agendaRoundtrip.getWorksheet('Tagesaufgaben');assert.ok(agendaSheet);
+assert.ok(agendaSheet.getColumn(2).values.includes('Vorbereitung'));assert.ok(agendaSheet.getColumn(6).values.includes('Noch unbesetzt'));
+for(const expanded of [false,true]){const root=w.buildCanvasExport(agendaSnapshot,expanded);assert.ok(root.querySelector('.day-activity.unassigned'));assert.match(root.textContent,/Vorbereitung/);assert.doesNotMatch(root.textContent,/Nach Snapshot geändert/);assert.equal(root.querySelector('.activity-edge'),null);root.remove();}
+let csvOutput;w.runExportCode(`window.originalDownload=download;download=(text,type,name)=>{window.csvOutput=text;};exportCSV();download=window.originalDownload;`);
+assert.match(w.csvOutput,/Tagesaufgabe: Nach Snapshot geändert/);assert.match(w.csvOutput,/Noch unbesetzt/);
+
 console.log('PASS: XLSX roundtrip, net hours, PNG modes, full-plan export/import, legacy migration, validation, confirmation, storage failure and recovery.');
 w.close();

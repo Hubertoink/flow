@@ -5,6 +5,13 @@ kopierbaren Teilschichten und Ist-/Sollstunden.
 
 ## Oberfläche
 
+Über den Personenschichten zeigt eine schmale Aufgaben-Spur, was am jeweiligen
+Tag stattfindet. Gleich benannte Aufgaben werden einmal angezeigt; überlappende
+oder direkt angrenzende Zeiten werden zusammengeführt. Zeitliche Lücken bleiben
+sichtbar. Aufgaben ohne zeitliche Überschneidung teilen sich eine Zeile. Beim
+Überfahren erscheinen alle Zeiträume und die zugeordneten Personen. Die Übersicht
+folgt den Aufgaben in den Schichten automatisch und fügt keine eigenen Schichten hinzu.
+
 Ein Klick auf eine Schicht öffnet ihren Bearbeitungsmodus, auch beim Klick auf
 ein enthaltenes Aufgabensegment. Weitere Klicks auf den Schichthintergrund lassen
 sie geöffnet; ein Klick auf eine Aufgabe öffnet dann deren Details. Das
@@ -381,3 +388,13 @@ zugehörige Woche. Punkte am Monatsnamen und an Tagen markieren vorhandene
 Schichten, auch außerhalb der aktuell angezeigten Woche und an Wochenenden.
 Die aktuelle Woche ist hinterlegt, der heutige Tag umrandet. Pfeiltasten
 sowie Pos1/Ende navigieren durch Tage; Escape schließt den Kalender.
+
+### Aufgaben zuerst planen
+
+Aufgabenvorlagen aus der Fußleiste können in die schmale Tagesleiste gezogen werden. Dort entstehen eigenständige Tagesaufgaben, auch ohne Schicht. Die Ränder ändern die Zeitspanne; ein Klick öffnet Namen, Zeiten und Zuordnungen. Unbesetzte Aufgaben sind gestrichelt.
+
+Eine Tagesaufgabe auf eine Schicht ziehen oder einen Mitarbeitenden-Token auf die Aufgabe ziehen, um zuzuordnen. Ohne vorhandene Schicht wird die Standardarbeitszeit verwendet. Bei Konflikten stehen freie Teilzeiten oder, wenn möglich, eine Schichterweiterung zur Auswahl; bestehende Aufgaben bleiben erhalten. Mehrere Personen teilen sich dieselbe Tagesaufgabe. Einzelne Zuordnungen können im Aufgabendialog entfernt werden.
+
+Tagesaufgaben und Verknüpfungen bleiben im lokalen Plan und im vollständigen JSON-Export erhalten. Tages- und Wochenkopien übernehmen auch noch unbesetzte Aufgaben. Vorhandene Schichtaufgaben werden beim Laden nach Tag und Bezeichnung zusammengeführt.
+
+Ab Version 1.6.0 enthält der Bildexport die Tagesaufgabenleiste. Excel ergänzt das Blatt „Tagesaufgaben“ mit Zeiträumen und Zuordnungen, CSV entsprechende Tagesaufgaben-Zeilen; auch unbesetzte Aufgaben werden ausgegeben. Der vollständige Planexport sichert Aufgaben und Verknüpfungen verlustfrei. Sobald Aufgaben zugeordnet sind, bestimmen die Zeiten in den Schichten den oberen Balken. Beim Vergrößern sortiert sich die Aufgabenleiste bereits in der Vorschau neu.

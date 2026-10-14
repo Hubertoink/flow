@@ -71,14 +71,22 @@ function readPlanTransfer(text){
       const offset=t.offset??cursor,taskId=t.id??uid();cursor=offset+t.duration;
       if(!id(taskId)||!number(offset,0,length)||!number(t.duration,.25,length)||offset+t.duration>length+.000001)fail('Eine Aufgabe liegt außerhalb ihrer Schicht.');
       segmentIds.push(taskId);
-      return {id:taskId,type:t.type,label:t.label||'',offset,duration:t.duration,...(t.color?{color:t.color}:{})};
+      return {id:taskId,type:t.type,label:t.label||'',offset,duration:t.duration,...(t.color?{color:t.color}:{}),...(t.activityId?{activityId:t.activityId}:{})};
     });
     const sorted=segments.toSorted((a,b)=>a.offset-b.offset);
     if(sorted.some((t,i)=>i>0&&t.offset<sorted[i-1].offset+sorted[i-1].duration-.000001))fail('Aufgaben überlappen sich.');
     return {id:s.id,person:s.person,date:s.date,start:s.start,length,y,segments};
   });
   unique(shifts.map(s=>s.id),'Schichten');unique(segmentIds,'Aufgaben');
-  return {week:selectedWeek,plan:{version:3,people,shifts,taskTypes,settings:{weekend:saturday&&sunday,saturday,sunday,breakRules:rules,...(settings.theme?{theme:settings.theme}:{}),...(settings.background!==undefined?{background:settings.background}:{}),...(settings.zoom!==undefined?{zoom:settings.zoom}:{})}}};
+  if(input.activities!==undefined&&(!Array.isArray(input.activities)||input.activities.length>50000))fail('Tagesaufgaben sind ungültig.');
+  const activities=(input.activities||[]).map(a=>{
+    if(!object(a)||!id(a.id)||!validDate(a.date)||!typeIds.has(a.type)||!string(a.label,1000)||!color(a.color)||!number(a.start,8,24)||!number(a.end,8,24)||a.end-a.start<.25||typeof a.explicit!=='boolean')fail('Eine Tagesaufgabe ist ungültig.');
+    return {id:a.id,date:a.date,type:a.type,label:a.label,color:a.color,start:a.start,end:a.end,explicit:a.explicit};
+  });
+  unique(activities.map(a=>a.id),'Tagesaufgaben');
+  shifts.forEach(s=>s.segments.forEach(t=>{if(t.activityId&&!activities.some(a=>a.id===t.activityId&&a.date===s.date))fail('Eine Aufgabenzuordnung ist ungültig.');}));
+
+  return {week:selectedWeek,plan:{version:3,people,shifts,activities,taskTypes,settings:{weekend:saturday&&sunday,saturday,sunday,breakRules:rules,...(settings.theme?{theme:settings.theme}:{}),...(settings.background!==undefined?{background:settings.background}:{}),...(settings.zoom!==undefined?{zoom:settings.zoom}:{})}}};
 }
 function applyImportedPlan(transfer){
   clearDrop();closePanel();closeWeekInfo();closeMonthPicker();
@@ -138,7 +146,7 @@ function weeklyExportSnapshot(daySettings=false){
   const days=weekDayIndices(typeof daySettings==='boolean'?{weekend:daySettings}:daySettings).map(i=>dateKey(addDays(week,i)));
   const people=structuredClone(data.people.filter(p=>shifts.some(s=>s.person===p.id)||Array.from({length:7},(_,i)=>dateKey(addDays(week,i))).some(date=>activeOn(p,date))))
     .sort((a,b)=>a.name.localeCompare(b.name,'de')||a.id.localeCompare(b.id));
-  return {start,end,days,people,shifts,breakRules:structuredClone(breakRules()),weekNumber:isoWeek(week)};
+  return {start,end,days,people,shifts,activities:structuredClone((data.activities||[]).filter(a=>a.date>=start&&a.date<=end)),breakRules:structuredClone(breakRules()),weekNumber:isoWeek(week)};
 }
 
 function fillExcel(color){return {type:'pattern',pattern:'solid',fgColor:{argb:color}};}
@@ -203,6 +211,17 @@ function buildWeeklyWorkbook(snapshot){
   [actualColumn,last].forEach((column,i)=>{total.getCell(column).value=snapshot.people.length?{formula:`SUM(${plan.getColumn(column).letter}5:${plan.getColumn(column).letter}${total.number-1})`,result:i?targetTotal:actualTotal}:0;total.getCell(column).numFmt='0.00" h"';});
   plan.pageSetup.printTitlesRow='1:4';plan.pageSetup.printArea=`A1:${plan.getColumn(last).letter}${total.number}`;
   styleExcelHeader(details,1);details.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,details.rowCount),column:10}};
+  const agenda=workbook.addWorksheet('Tagesaufgaben',{views:[{state:'frozen',ySplit:1}],pageSetup:{orientation:'landscape',paperSize:9}});
+  agenda.columns=[{header:'Datum',width:16},{header:'Aufgabe',width:32},{header:'Von',width:12},{header:'Bis',width:12},{header:'Dauer (h)',width:14},{header:'Zugeordnet',width:45}];
+  Array.from({length:7},(_,i)=>dateKey(addDays(parseDate(snapshot.start),i))).forEach(date=>{
+    dayActivityGroups(snapshot.shifts.filter(s=>s.date===date),date,null,snapshot.activities||[]).forEach(group=>group.ranges.forEach(range=>{
+      const people=[...group.people].map(id=>snapshot.people.find(p=>p.id===id)?.name).filter(Boolean).join(', ');
+      const row=agenda.addRow([date,group.name,range.start/24,range.end/24,range.end-range.start,people||'Noch unbesetzt']);
+      row.getCell(3).numFmt=row.getCell(4).numFmt='[hh]:mm';row.getCell(5).numFmt='0.00';row.getCell(2).fill=fillExcel(excelColor(group.color));
+      row.eachCell(cell=>{cell.font={name:'Calibri',size:11,color:{argb:'FF263449'}};cell.alignment={vertical:'middle',wrapText:true};});
+    }));
+  });
+  styleExcelHeader(agenda,1);agenda.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,agenda.rowCount),column:6}};
   return workbook;
 }
 
@@ -215,6 +234,9 @@ function buildCanvasExport(snapshot,expanded){
     const column=document.createElement('section');column.className='day-column';
     column.innerHTML=`<div class="day-head"><div class="day-title"><span class="day-name">${weekdays[(parseDate(date).getDay()+6)%7]}</span><span class="day-date">${esc(parseDate(date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}))}</span></div><div class="hours">${[8,10,12,14,16,18,20,22,24].map(hour=>`<span>${String(hour).padStart(2,'0')}</span>`).join('')}</div></div><div class="day-cell"></div>`;
     const cell=column.querySelector('.day-cell'),shifts=snapshot.shifts.filter(s=>s.date===date).toSorted((a,b)=>a.y-b.y||a.start-b.start);
+    cell.insertAdjacentHTML('beforebegin',dayAgendaMarkup(shifts,parseDate(date),snapshot));
+    column.querySelectorAll('.activity-edge').forEach(el=>el.remove());
+    column.querySelectorAll('.day-activity').forEach(el=>{el.removeAttribute('draggable');el.removeAttribute('tabindex');});
     let bottom=32;
     shifts.forEach(s=>{
       const holder=document.createElement('div');holder.innerHTML=shiftMarkup(s);const bar=holder.firstElementChild;
@@ -230,6 +252,7 @@ function buildCanvasExport(snapshot,expanded){
     cell.style.minHeight=Math.max(300,bottom)+'px';if(!shifts.length)cell.innerHTML='<p class="canvas-export-empty">Keine Schichten</p>';
     grid.append(column);
   });
+  grid.classList.add('has-day-agenda');grid.style.setProperty('--agenda-height',Math.max(1,...[...grid.querySelectorAll('.day-agenda')].map(el=>Number(el.dataset.rows)))*22+24+'px');
   root.insertAdjacentHTML('beforeend','<footer class="canvas-export-note">Zeitskala 08:00–24:00 · Farben entsprechen dem Wochenplan</footer>');
   document.body.append(root);
   return root;

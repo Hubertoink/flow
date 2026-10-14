@@ -111,4 +111,51 @@
 .token time{display:inline-grid;flex:none;text-align:right;font-variant-numeric:tabular-nums}
 .token time::before{content:attr(data-day-hours);white-space:pre;height:0;visibility:hidden;grid-area:1 / 1}
 .token-hours{grid-area:1 / 1;justify-self:end}
+.drop-preview>span{top:50%;left:10px;transform:translateY(-50%);width:max-content;padding:3px 7px;border-radius:6px;background:var(--surface,#1b2433);color:var(--text,#dfe7f2);border:1px solid var(--border,#ffffff15);font-size:10px;line-height:16px;font-variant-numeric:tabular-nums;white-space:normal;box-shadow:0 2px 8px #0002}
+.day-agenda{display:none}
+.has-day-agenda .day-agenda{display:block;position:sticky;top:60px;height:var(--agenda-height);flex:none;z-index:11;background:color-mix(in srgb,var(--surface,#1b2433) 93%,transparent);border-bottom:1px solid var(--border,#ffffff0c)}
+.day-agenda-caption{position:absolute;top:6px;left:11px;right:8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:7px;line-height:9px;letter-spacing:1px;color:var(--muted,#8290a7);opacity:.8}
+.day-activity{position:absolute;left:0;right:0;top:calc(20px + var(--agenda-row)*22px);height:18px;pointer-events:none}
+.day-activity-range{position:absolute;top:0;height:18px;padding:0 7px;display:flex;align-items:center;min-width:0;border-radius:6px;background:var(--activity-color);color:var(--activity-ink);pointer-events:auto;box-shadow:inset 0 0 0 1px #ffffff18}
+.day-activity-range b{min-width:0;font-size:9px;font-weight:550;line-height:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.day-activity-range{gap:6px;overflow:hidden}
+.day-activity-range time{flex:none;font-size:8px;line-height:14px;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:.85}
+.has-day-agenda .folded .day-agenda{display:flex;flex-wrap:wrap;align-content:center;justify-content:center;gap:5px;padding:8px;overflow:hidden}
+.folded .day-agenda-caption{display:none}
+.folded .day-activity{position:relative;left:auto;right:auto;top:auto;width:18px;height:6px;flex:none}
+.folded .day-activity-range{display:none}
+.folded .day-activity-range:first-child{display:block;left:0!important;width:100%!important;height:6px;padding:0;border-radius:3px}
+.folded .day-activity-range b,.folded .day-activity-range time{display:none}
+@media(max-width:800px){.has-day-agenda .day-agenda{top:56px}}
+@media print{.has-day-agenda .day-agenda{position:relative;top:auto;background:#f3f5f8}}
 @media print{.week-nav #week-number{visibility:visible}.week-copy-hint{display:none!important}}
+
+.flow-tooltip{position:fixed;z-index:10000;pointer-events:none;display:flex;flex-direction:column;gap:4px;width:max-content;max-width:min(320px,calc(100vw - 20px));max-height:calc(100vh - 20px);overflow:hidden;padding:10px 12px;border:1px solid var(--border,#46546b);border-radius:10px;background:var(--surface,#202a3b);color:var(--text,#eceff6);box-shadow:0 8px 24px #0003;font-size:11px;line-height:1.5;overflow-wrap:anywhere;animation:tooltip-appear 120ms ease-out}
+.flow-tooltip[hidden]{display:none}
+.flow-tooltip strong{font-weight:600}
+.flow-tooltip span{color:var(--muted,#a9b5c9);font-variant-numeric:tabular-nums}
+.day-activity:focus-visible{outline:none}
+.day-activity:focus-visible .day-activity-range{outline:1px solid var(--muted);outline-offset:2px}
+@keyframes tooltip-appear{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.flow-tooltip{animation:none}}
+@media print{.flow-tooltip{display:none!important}}
+
+.day-agenda.agenda-drop{box-shadow:inset 0 0 0 1px var(--muted)}
+.day-activity-range{cursor:grab;pointer-events:auto}
+.day-activity-range small{flex:none;font-size:7px;opacity:.8;white-space:nowrap}
+.day-activity.unassigned .day-activity-range{background:color-mix(in srgb,var(--activity-color) 18%,var(--surface));color:var(--text);border:1px dashed var(--activity-color)}
+.activity-edge{position:absolute;top:0;bottom:0;width:6px;cursor:ew-resize}
+.activity-edge[data-edge=start]{left:0}.activity-edge[data-edge=end]{right:0}
+.folded .day-activity-range small,.folded .activity-edge{display:none}
+.assignment-choices,.assignment-list{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+
+.day-activity-range{container-type:inline-size}
+@container (max-width:190px){.day-activity-range small{display:none}}
+
+.activity-assignment{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;padding:7px 9px;border:1px solid var(--border);border-radius:8px;color:var(--text);background:transparent;font-size:11px}
+.activity-assignment span{min-width:0;overflow-wrap:anywhere}
+.activity-assignment time{display:block;margin-top:2px;color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
+.activity-assignment svg{width:13px;height:13px;flex:none;color:var(--muted)}
+.activity-assignment:hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
+
+.canvas-export .day-agenda{position:relative;top:auto}

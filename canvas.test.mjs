@@ -110,7 +110,7 @@ assert.equal(all('.shift').length,0);assert.equal(all('.person-name').length,0);
   zq(`[data-person="${person}"]`).ondragstart(event);
   saturday.ondragenter(event);
   assert.equal(dt.dropEffect,'copy');assert.equal(saturday.querySelector('.drop-preview').style.width,'18.75%');
-  assert.match(saturday.querySelector('.drop-preview').textContent,/21:00 · 3 h/);
+  assert.match(saturday.querySelector('.drop-preview').textContent,/21:00–24:00 · 3 h/);
   saturday.ondrop(event);
   const weekendShift=run(`data.shifts.find(s=>s.date==='${saturday.dataset.date}')`);
   assert.equal(weekendShift.length,3);assert.equal(weekendShift.start,21);
@@ -201,7 +201,7 @@ const snapshot=saved(),reload=boot(snapshot);assert.deepEqual(JSON.parse(reload.
 // Summary counts all seven days even when weekends are hidden; copies are independent snapshots.
 const fixture=structuredClone(snapshot);fixture.people.forEach(p=>{p.from='';p.until='';});const sunday=new Date(fixture.shifts[0].date+'T12:00:00');sunday.setDate(sunday.getDate()+6);const sundayKey=`${sunday.getFullYear()}-${String(sunday.getMonth()+1).padStart(2,'0')}-${String(sunday.getDate()).padStart(2,'0')}`;fixture.shifts.push({id:'sunday',person:'niko',date:sundayKey,start:20,length:2,y:32,segments:[]});
 const cd=boot(fixture),cw=cd.window,cq=s=>cw.document.querySelector(s),cs=()=>JSON.parse(cw.localStorage.getItem('flow-plan-v1'));cq('#week-info-toggle').click();assert.equal(cq('#week-info').hidden,false);assert.equal(cq('[data-summary-person="lea"]'),null);assert.match(cq('[data-summary-person="kayla"] .weekly-comparison').textContent,/32 h Soll/);assert.match(cq('.week-info-total b').textContent,/18 h/);assert.match(cq('[data-summary-person="niko"] summary b').textContent,/10 h/);assert.match(cq('[data-summary-person="niko"] .weekly-tasks').textContent,/Ohne Aufgabe/);
-const sourceShift=fixture.shifts[1];cq(`[data-shift="${sourceShift.id}"] .shift-edit`).click();cq(`[data-shift="${sourceShift.id}"] .shift-copy`).click();assert.equal(cq('#copy-tray').hidden,false);assert.equal(cq('#copy-badge').querySelectorAll('.copy-mini-task').length,sourceShift.segments.length);cq('#copy-badge').click();cw.document.querySelectorAll('.day-cell')[1].dispatchEvent(new cw.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));let copied=cs().shifts.at(-1);assert.equal(cs().shifts.length,4);assert.equal(copied.start,sourceShift.start);assert.equal(copied.length,sourceShift.length);assert.notEqual(copied.id,sourceShift.id);assert.deepEqual(copied.segments.map(({id,...t})=>t),sourceShift.segments.map(({id,...t})=>t));assert.ok(copied.segments.every(t=>!sourceShift.segments.some(o=>o.id===t.id)));assert.deepEqual(cs().shifts.find(s=>s.id===sourceShift.id),sourceShift);
+const sourceShift=fixture.shifts[1];cq(`[data-shift="${sourceShift.id}"] .shift-edit`).click();cq(`[data-shift="${sourceShift.id}"] .shift-copy`).click();assert.equal(cq('#copy-tray').hidden,false);assert.equal(cq('#copy-badge').querySelectorAll('.copy-mini-task').length,sourceShift.segments.length);cq('#copy-badge').click();cw.document.querySelectorAll('.day-cell')[1].dispatchEvent(new cw.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));let copied=cs().shifts.at(-1);assert.equal(cs().shifts.length,4);assert.equal(copied.start,sourceShift.start);assert.equal(copied.length,sourceShift.length);assert.notEqual(copied.id,sourceShift.id);assert.deepEqual(copied.segments.map(({id,activityId,...t})=>t),sourceShift.segments.map(({id,activityId,...t})=>t));assert.ok(copied.segments.every(t=>!sourceShift.segments.some(o=>o.id===t.id)));assert.deepEqual(cs().shifts.find(s=>s.id===sourceShift.id),sourceShift);
 cq('#copy-badge').click();cw.document.querySelectorAll('.day-cell')[1].dispatchEvent(new cw.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));assert.equal(cs().shifts.length,4);cq('#week-info-toggle').click();assert.match(cq('.week-info-total b').textContent,/26 h/);cq('#dismiss-copy').click();assert.equal(cq('#copy-tray').hidden,true);cw.close();
 // Individual task copies retain duration and custom fields, without replacing existing work.
 const taskFixture=structuredClone(fixture),taskDate=fixture.shifts[0].date;
@@ -225,7 +225,7 @@ hoverCopy(hoverTarget);assert.equal(tq('.task-copy-ghost.over-target')!==null,tr
 tw.document.documentElement.dispatchEvent(new tw.MouseEvent('dragleave',{bubbles:true}));assert.equal(tq('.task-copy-ghost').classList.contains('over-target'),false);assert.equal(tq('.task-copy-target'),null);
 tq('#copy-badge').ondragend();assert.equal(tq('.task-copy-ghost'),null);assert.deepEqual(ts().shifts[0].segments[0].label,'Geändertes Original');
 function taskDrag(shiftId,x,drop=true){tq('#copy-badge').ondragstart({dataTransfer:transfer});const target=tq(`[data-shift="${shiftId}"]`),cell=target.parentElement;cell.getBoundingClientRect=()=>({left:0,top:0,width:1200});const event={preventDefault(){},dataTransfer:transfer,target,clientX:x,clientY:180};cell.ondragover(event);if(drop)cell.ondrop(event);else tq('#copy-badge').ondragend();}
-taskDrag('task-target',225);let targetTask=ts().shifts[1].segments.find(t=>t.id!=='existing');assert.equal(targetTask.offset,3);assert.equal(targetTask.duration,2);assert.equal(targetTask.label,'Team-Meeting');assert.equal(targetTask.color,'#112233');assert.equal(targetTask.type,'flex');assert.notEqual(targetTask.id,'meeting');assert.deepEqual(ts().shifts[1].segments.find(t=>t.id==='existing'),taskFixture.shifts[1].segments[0]);assert.equal(ts().shifts[1].length,8);assert.equal(ts().shifts[0].segments[0].label,'Geändertes Original');
+taskDrag('task-target',225);let targetTask=ts().shifts[1].segments.find(t=>t.id!=='existing');assert.equal(targetTask.offset,3);assert.equal(targetTask.duration,2);assert.equal(targetTask.label,'Team-Meeting');assert.equal(targetTask.color,'#112233');assert.equal(targetTask.type,'flex');assert.notEqual(targetTask.id,'meeting');assert.deepEqual((({activityId,...t})=>t)(ts().shifts[1].segments.find(t=>t.id==='existing')),taskFixture.shifts[1].segments[0]);assert.equal(ts().shifts[1].length,8);assert.equal(ts().shifts[0].segments[0].label,'Geändertes Original');
 taskDrag('task-full',100,false);assert.equal(transfer.dropEffect,'none');assert.equal(tq('.drop-preview'),null);const blockedBefore=structuredClone(ts());taskDrag('task-full',100);assert.deepEqual(ts(),blockedBefore);assert.match(tq('#toast').textContent,/freier Bereich/);
 tq('#copy-badge').ondragstart({dataTransfer:transfer});tq('.day-head').ondrop({preventDefault(){}});assert.match(tq('#toast').textContent,/bestehende Schicht/);assert.deepEqual(ts(),blockedBefore);
 tq('#copy-badge').click();let emptyCell=tq('.day-cell');emptyCell.dispatchEvent(new tw.MouseEvent('click',{bubbles:true}));assert.match(tq('#toast').textContent,/bestehende Schicht/);assert.deepEqual(ts(),blockedBefore);
@@ -301,6 +301,53 @@ updateListener({status:'error',error:'Netzwerk <weg>'});assert.equal(uq('.update
 const lateDom=boot(null,win=>{win.flowDesktop={...fakeDesktop,updateInfo:async()=>({version:'1.1.0',supported:false,status:'idle',reason:'Paketmanager nutzen'})};}),lq=sel=>lateDom.window.document.querySelector(sel);
 await tick();lq('#settings-button').click();lq('#settings-tab-updates').click();assert.match(lq('.update-note').textContent,/Paketmanager/);assert.equal(lq('#update-check'),null);lateDom.window.close();
 const toastDom=boot(null,win=>{win.flowDesktop=fakeDesktop;});await tick();updateListener({status:'available',latest:'1.3.0'});assert.equal(toastDom.window.document.querySelector('#toast').hidden,false);assert.match(toastDom.window.document.querySelector('#toast').textContent,/1\.3\.0/);toastDom.window.close();}
+// Daily activity lanes merge shared work without mutating personal assignments.
+{
+  const agendaDom=boot(),aw=agendaDom.window,aq=s=>aw.document.querySelector(s),run=code=>aw.runCanvasCode(code);
+  run(`data.shifts=data.people.map((p,i)=>({id:'agenda-'+p.id,person:p.id,date:dateKey(week),start:11.5,length:8.5,y:32+i*56,segments:[
+    {id:'meeting-'+i,type:'flex',label:i===1?'  team  <meeting>  ':'Team <Meeting>',color:'#ad95df',offset:.5,duration:1.5},
+    {id:'open-'+i,type:'open',offset:3.5,duration:i===2?2.5:5}
+  ]}));
+  data.shifts[2].segments.push({id:'circus',type:'flex',label:'Zirkus',color:'#85b9e2',offset:6,duration:1.5});
+  data.people.push({...data.people[0],id:'inactive-agenda',until:'2000-01-01'});
+  data.shifts.push({id:'past-agenda',person:'inactive-agenda',date:dateKey(week),start:8,length:3,y:256,segments:[{id:'past-task',type:'prep',offset:0,duration:3}]});
+  persist();refresh()`);
+  const before=aw.localStorage.getItem('flow-plan-v1'),agenda=aq('.day-agenda');
+  assert.equal(agenda.querySelectorAll('.day-activity').length,3);
+  assert.equal(agenda.querySelectorAll('.day-activity-range').length,3);
+  assert.equal(agenda.querySelector('meeting'),null);
+  assert.equal(agenda.dataset.rows,'2');
+  assert.equal(aq('#timeline').style.getPropertyValue('--agenda-height'),'68px');
+  const items=[...agenda.querySelectorAll('.day-activity')],open=items.find(el=>el.querySelector('b')?.textContent==='Offener Bereich'),meeting=items.find(el=>el.querySelector('b')?.textContent==='Team <Meeting>');
+  meeting.dispatchEvent(new aw.FocusEvent('focusin',{bubbles:true}));
+  const tooltip=aq('#flow-tooltip');assert.equal(tooltip.hidden,false);
+  assert.equal(tooltip.querySelector('strong').textContent,'Team <Meeting>');
+  assert.equal(tooltip.querySelector('meeting'),null);
+  assert.equal(meeting.hasAttribute('title'),false);
+  assert.equal(meeting.getAttribute('aria-describedby'),'flow-tooltip');
+  aw.document.dispatchEvent(new aw.Event('pointerdown',{bubbles:true}));
+  assert.equal(tooltip.hidden,true);assert.equal(meeting.hasAttribute('aria-describedby'),false);
+  assert.ok(open);assert.ok(meeting);assert.match(open.dataset.tooltip,/15:00–20:00/);
+  for(const name of ['Kayla','Niko','Lea','Sam'])assert.ok(open.dataset.tooltip.includes(name));
+  assert.equal(open.style.getPropertyValue('--agenda-row'),meeting.style.getPropertyValue('--agenda-row'));
+  assert.equal(open.querySelector('time').textContent,'15:00–20:00');
+  assert.equal(meeting.querySelector('time').textContent,'12:00–13:30');
+  const bar=open.querySelector('.day-activity-range');assert.ok(bar.style.left.includes('43.75%'));assert.ok(bar.style.width.includes('31.25%'));
+  open.click();assert.equal(aq('#modal').open,false);assert.equal(aq('#detail').hidden,false);assert.ok(aq('#activity-delete svg'));assert.ok(aq('#detail .toolkit-top'));aq('#activity-close').click();assert.equal(aq('#detail').hidden,true);assert.equal(run('editing'),null);assert.equal(aw.localStorage.getItem('flow-plan-v1'),before);
+  const split=JSON.parse(run(`JSON.stringify(dayActivityGroups([{person:'niko',start:8,segments:[
+    {type:'open',offset:0,duration:2},{type:'open',offset:2,duration:1},{type:'open',offset:6,duration:2}
+  ]}]))`));
+  assert.equal(split.length,1);assert.deepEqual(split[0].ranges,[{start:8,end:11},{start:14,end:16}]);
+  aw.document.querySelectorAll('.day-head')[1].click();assert.equal(aq('#timeline').classList.contains('has-day-agenda'),true);
+  assert.equal(aq('#timeline').style.getPropertyValue('--agenda-height'),'46px');
+  assert.equal(aq('.folded .day-agenda').querySelectorAll('.day-activity').length,3);
+  aw.document.querySelectorAll('.day-head')[0].click();assert.equal(aq('#timeline').classList.contains('has-day-agenda'),true);
+  assert.equal(aq('#timeline').style.getPropertyValue('--agenda-height'),'68px');
+  run(`data.shifts[0].segments[1].duration=6;persist();refresh()`);
+  assert.ok([...aq('.day-agenda').querySelectorAll('.day-activity')].find(el=>el.querySelector('b')?.textContent==='Offener Bereich').dataset.tooltip.includes('15:00–21:00'));
+  assert.equal(aw.document.querySelectorAll('.shift').length,4);
+  aw.close();
+}
 // Folded days retain an accessible miniature of every active shift.
 {
 const miniFixture=structuredClone(snapshot);miniFixture.people.forEach(p=>{p.from='';p.until='';});
@@ -319,7 +366,7 @@ assert.equal(mq('[data-mini-shift="mini-monday"]').parentElement.hidden,false);
 assert.equal(mq('[data-shift="mini-monday"]').inert,true);
 assert.equal(mq('[data-shift="mini-tuesday"]').inert,false);
 assert.equal(mq('[data-mini-shift="mini-tuesday"]').parentElement.hidden,true);
-assert.match(mq('[data-mini-shift="mini-monday"]').title,/Team <Meeting>: 10:00–12:00/);
+assert.match(mq('[data-mini-shift="mini-monday"]').dataset.tooltip,/Team <Meeting>: 10:00–12:00/);
 assert.equal(mq('.day-mini-bar').style.left,'12.5%');assert.equal(mq('.day-mini-bar').style.width,'37.5%');
 assert.equal(mq('.day-mini-bar').children.length,1);
 assert.equal(mq('.day-mini-bar>span').style.width,2/6*100+'%');
@@ -365,7 +412,7 @@ bq('[data-person="niko"]').ondragstart({dataTransfer:breakTransfer});
 bq('.day-cell').getBoundingClientRect=()=>({left:0,top:0,width:1200});
 bq('.day-cell').ondragover({preventDefault(){},dataTransfer:breakTransfer,target:bq('.day-cell'),clientX:0,clientY:32});
 assert.equal(parseFloat(bq('.drop-preview').style.width),8.5/16*100);
-assert.match(bq('[data-person="niko"]').title,/8 h netto.*8,5 h Anwesenheit/);
+assert.match(bq('[data-person="niko"]').dataset.tooltip,/8 h netto.*8,5 h Anwesenheit/);
 bq('[data-person="niko"]').ondragend();bq('[data-person="niko"]').click();
 bq('.day-cell').getBoundingClientRect=()=>({left:0,top:0,width:1200});
 bq('.day-cell').dispatchEvent(new bw.MouseEvent('click',{clientX:0,clientY:32,bubbles:true}));
@@ -510,7 +557,7 @@ assert.equal(bw.document.documentElement.style.getPropertyValue('--background-im
     assert.deepEqual(created.map(s=>s.date),[targetWeek,targetWeek,run('dateKey(addDays(week,6))')]);
     assert.deepEqual(created.map(s=>s.y),[32,88,32]);
     for(const [copy,original] of [[created[0],source[0]],[created[1],source[1]],[created[2],source[4]]]){
-      const strip=s=>{const {id,date,y,...rest}=s;return {...rest,segments:s.segments.map(({id,...t})=>t)};};
+      const strip=s=>{const {id,date,y,...rest}=s;return {...rest,segments:s.segments.map(({id,activityId,...t})=>t)};};
       assert.deepEqual(strip(copy),strip(original));assert.notEqual(copy.id,original.id);
     }
     assert.notEqual(created[0].segments[0].id,source[0].segments[0].id);
@@ -598,3 +645,89 @@ assert.equal(bw.document.documentElement.style.getPropertyValue('--background-im
   aw.close();
 }
 console.log('PASS: canvas interactions, boundary resizing, apply/validation, themes/backgrounds/persistence, settings tabs, updates, weekly schedules, animated hours/retargeting/reduced motion, copies, whole-week drag/drop/undo, DST/year mapping, folded-day miniatures, break rules/net totals, month calendar/navigation, migration and reload.');w.close();
+
+// Task-first planning: empty activities, conflict choices, shared references and reload.
+{
+  const ad=boot(),aw=ad.window,run=code=>aw.runCanvasCode(code),aq=s=>aw.document.querySelector(s);
+  run(`data.shifts=[];data.activities=[];data.people.forEach(p=>{p.from='';p.until='';});persist();refresh();
+    window.planned=createActivity('open',dateKey(week),15);changeActivityRange(planned,15,20);`);
+  assert.ok(aq('.day-activity.unassigned'));assert.match(aq('.day-activity').dataset.tooltip,/Noch unbesetzt/);
+  run(`assignActivity(planned.id,data.people[0].id)`);
+  assert.ok(aq('#assignment-extend'));assert.equal(run('data.shifts.length'),0);
+  aq('#assignment-extend').click();
+  assert.equal(run('data.shifts.length'),1);assert.equal(run('data.shifts[0].segments[0].activityId'),run('planned.id'));
+  assert.equal(aq('.day-activity.unassigned'),null);
+  run(`assignActivity(planned.id,data.people[0].id)`);assert.equal(run('data.shifts.length'),1);
+  run(`window.conflict={id:'conflict-plan',person:data.people[1].id,date:planned.date,start:12,length:8,y:90,segments:[{id:'busy',type:'admin',offset:4,duration:1}]};data.shifts.push(conflict);persist();refresh();assignActivity(planned.id,conflict.person,conflict.id);`);
+  assert.ok(aq('#assignment-part'));assert.equal(run('conflict.segments.length'),1);aq('#assignment-part').click();
+  assert.equal(run('conflict.segments.length'),3);assert.equal(run('conflict.segments.find(t=>t.id==="busy").duration'),1);
+  assert.equal(aq('.day-agenda').querySelectorAll('[data-activity="'+run('planned.id')+'"]').length,1);
+  assert.equal(run('changeActivityRange(planned,8,20)'),false);
+  const snapshot=JSON.parse(aw.localStorage.getItem('flow-plan-v1')),again=boot(snapshot);
+  assert.deepEqual(JSON.parse(again.window.localStorage.getItem('flow-plan-v1')),snapshot);again.window.close();
+  run(`window.empty=createActivity('prep',dateKey(addDays(week,1)),9);copyDay(empty.date);placeDayCopy(dateKey(addDays(week,2)));`);
+  assert.equal(run(`data.activities.filter(a=>a.type==='prep'&&a.explicit).length`),2);
+  // Exercise both delegated drop routes, not only the assignment helpers.
+  const lane=aw.document.querySelectorAll('.day-agenda')[3];lane.getBoundingClientRect=()=>({left:0,width:1600});
+  run(`drag={kind:'task',id:'admin'}`);
+  lane.ondrop({preventDefault(){},stopPropagation(){},target:lane,clientX:400});
+  const target=aw.document.querySelectorAll('.day-agenda')[3].querySelector('[data-activity]');
+  assert.ok(target);assert.equal(run(`data.activities.find(a=>a.id==='${target.dataset.activity}').start`),12);
+  run(`drag={kind:'person',id:data.people[0].id}`);
+  target.closest('.day-agenda').ondrop({preventDefault(){},stopPropagation(){},target,clientX:400});
+  assert.equal(run(`data.shifts.filter(s=>s.date===dateKey(addDays(week,3))).length`),1);
+  run(`createShift(data.people[1].id,dateKey(addDays(week,3)),10,100)`);
+  const taskEl=aw.document.querySelector(`[data-activity="${target.dataset.activity}"]`),dt={setData(){}};
+  taskEl.ondragstart({target:taskEl,dataTransfer:dt});
+  const shiftId=run(`data.shifts.find(s=>s.person===data.people[1].id&&s.date===dateKey(addDays(week,3))).id`),shiftEl=aw.document.querySelector(`[data-shift="${shiftId}"]`);
+  shiftEl.parentElement.ondrop({preventDefault(){},target:shiftEl,clientX:400,clientY:100});
+  assert.equal(run(`activityAssignments(data.activities.find(a=>a.id==='${target.dataset.activity}')).length`),2);
+
+  aw.close();
+}
+
+// Assigned times supersede draft times; live agenda resize packs rows before commit.
+{
+  const ad=boot(),aw=ad.window,run=code=>aw.runCanvasCode(code),aq=s=>aw.document.querySelector(s);
+  run(`data.shifts=[];data.activities=[];window.homework=createActivity('homework',dateKey(week),12.75);changeActivityRange(homework,12.75,14);
+    data.shifts=[{id:'assigned-time',person:data.people[0].id,date:dateKey(week),start:9,length:12,y:32,segments:[{id:'hw-assignment',activityId:homework.id,type:homework.type,label:homework.label,offset:2.5,duration:2}]}];persist();refresh();`);
+  assert.equal(run('homework.start'),11.5);assert.equal(run('homework.end'),13.5);
+  assert.equal(aq('.day-activity time').textContent,'11:30–13:30');
+  run('changeActivityRange(homework,homework.start,homework.end+.25)');
+  assert.equal(run('data.shifts[0].segments[0].offset'),2.5);
+  assert.equal(run('data.shifts[0].segments[0].duration'),2.25);
+  assert.equal(run('homework.end'),13.75);
+  run(`data.shifts[0].segments=[];persist();refresh();window.openTask=createActivity('open',dateKey(week),15);changeActivityRange(openTask,15,21);`);
+  const lane=aq('.day-agenda');lane.getBoundingClientRect=()=>({left:0,width:1600});
+  const handle=aq(`[data-activity="${run('homework.id')}"] .activity-edge[data-edge="end"]`);
+  const stored=aw.localStorage.getItem('flow-plan-v1');
+  handle.onpointerdown({preventDefault(){},stopPropagation(){},pointerId:1,clientX:575});
+  handle.onpointermove({clientX:800});
+  const other=aq(`[data-activity="${run('openTask.id')}"]`);
+  assert.equal(other.style.getPropertyValue('--agenda-row'),'1');
+  assert.equal(lane.dataset.rows,'2');assert.equal(aq('#timeline').style.getPropertyValue('--agenda-height'),'68px');
+  assert.equal(aw.localStorage.getItem('flow-plan-v1'),stored);
+  handle.onpointercancel({type:'pointercancel'});
+  assert.equal(aq(`[data-activity="${run('openTask.id')}"]`).style.getPropertyValue('--agenda-row'),'0');
+  assert.equal(aw.localStorage.getItem('flow-plan-v1'),stored);
+  const next=aq(`[data-activity="${run('homework.id')}"] .activity-edge[data-edge="end"]`);
+  aq('.day-agenda').getBoundingClientRect=()=>({left:0,width:1600});
+  next.onpointerdown({preventDefault(){},stopPropagation(){},pointerId:2,clientX:575});next.onpointermove({clientX:800});next.onpointerup({type:'pointerup'});
+  assert.equal(run('homework.end'),16);
+  assert.equal(aq(`[data-activity="${run('openTask.id')}"]`).style.getPropertyValue('--agenda-row'),'1');
+  aw.close();
+}
+
+// Week copies retain unassigned tasks and point assignments at target-day activities.
+{
+  const ad=boot(),aw=ad.window,run=code=>aw.runCanvasCode(code);
+  run(`data.shifts=[];data.activities=[];data.people.forEach(p=>{p.from='';p.until='';});persist();refresh();
+    window.sourceTask=createActivity('prep',dateKey(week),10);assignActivity(sourceTask.id,data.people[0].id);
+    createActivity('admin',dateKey(addDays(week,6)),13);copyWeek();changeWeek(7);placeWeekCopy();`);
+  assert.equal(run('data.activities.length'),4);
+  assert.equal(run('data.shifts.length'),2);
+  assert.equal(run('data.shifts[0].segments[0].activityId===data.shifts[1].segments[0].activityId'),false);
+  assert.equal(run('data.activities.find(a=>a.id===data.shifts[1].segments[0].activityId).date'),run('data.shifts[1].date'));
+  assert.equal(run(`data.activities.filter(a=>a.type==='admin'&&a.explicit).length`),2);
+  ad.window.close();
+}
