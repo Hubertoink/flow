@@ -29,6 +29,7 @@
     if(el.dataset.state!==value||el.dataset.tooltip!==label){el.innerHTML=icon(offline?'ban':saving?'refresh':'save')+`<span class="team-status-label">${escape(label)}</span>`;el.dataset.state=value;el.dataset.tooltip=label;}
     const version=document.querySelector('#team-version');if(version){version.textContent='v'+(state.version||'–');version.setAttribute('aria-label','Version '+(state.version||'unbekannt'));}
     const publication=document.querySelector('#team-week-state');if(publication)publication.disabled=!admin()||saving||scheduled||offline;
+    const weekLock=document.querySelector('#team-week-lock-toggle');if(weekLock)weekLock.disabled=!admin()||saving||scheduled||offline;
   }
   function busy(value){saving=value;document.body.classList.toggle('team-saving',value);document.querySelector('#app')?.setAttribute('aria-busy',String(value));status();}
   function reconcile(current,next){
@@ -105,6 +106,12 @@
       toast(published?'Woche veröffentlicht.':'Woche als Entwurf gespeichert.');
     }
   }
+  async function toggleWeekLock(){
+    if(!admin()||saving||scheduled||offline)return;
+    const selectedWeek=dateKey(week),p=period(selectedWeek),timesLocked=!p?.timesLocked;closeMenu();
+    const result=await administrative('/api/periods/'+selectedWeek,{expectedRevision:state.revision,published:p?.published||false,timesLocked});
+    if(result)toast(timesLocked?'Arbeitszeiten der Woche fixiert. Aufgaben bleiben bearbeitbar.':'Wochenzeiten freigegeben. Einzelne Schichtsperren bleiben bestehen.');
+  }
   function decorate(){
     const weekState=document.querySelector('#team-week-state');
     if(weekState){
@@ -113,7 +120,11 @@
       weekState.dataset.published=String(published);weekState.setAttribute('aria-pressed',String(published));
       weekState.setAttribute('aria-label',label+(admin()?(published?' – Woche als Entwurf speichern':' – Woche veröffentlichen'):''));
       weekState.dataset.tooltip=admin()?(published?'Veröffentlicht · Klicken, um die Woche wieder als Entwurf zu speichern.':'Entwurf · Klicken, um die Woche für Mitarbeitende ohne Entwurfszugriff sichtbar zu machen.'):(published?'Diese Woche ist veröffentlicht.':'Diese Woche ist noch ein Entwurf.');
-      document.querySelector('#team-week-lock-state').hidden=!p?.timesLocked;
+      const weekLock=document.querySelector('#team-week-lock-toggle'),locked=!!p?.timesLocked;
+      if(weekLock.dataset.locked!==String(locked)){weekLock.innerHTML=icon(locked?'lock':'unlock');weekLock.dataset.locked=String(locked);}
+      weekLock.setAttribute('aria-pressed',String(locked));
+      weekLock.setAttribute('aria-label',locked?'Wochenzeiten fixiert – freigeben':'Wochenzeiten frei – fixieren');
+      weekLock.dataset.tooltip=locked?'Arbeitszeiten der Woche fixiert · '+(admin()?'Klicken zum Freigeben. Aufgaben bleiben bearbeitbar.':'Aufgaben bleiben bearbeitbar.'):'Wochenzeiten frei · '+(admin()?'Klicken, um die Arbeitszeiten aller Schichten dieser Woche zu fixieren. Einzelne Schichtsperren bleiben bestehen.':'Einzelne Schichtsperren können weiterhin gelten.');
       document.querySelector('#team-publish').innerHTML=icon('users')+(published?'Woche als Entwurf':'Woche veröffentlichen');
       document.querySelector('#team-week-lock').innerHTML=icon('lock')+(p?.timesLocked?'Wochenzeiten freigeben':'Wochenzeiten fixieren');
     }
@@ -259,7 +270,7 @@
   team.init=()=>{
     document.querySelector('#settings-button').insertAdjacentHTML('afterend',`<div id="team-user-wrap" class="menu-wrap"><button id="team-user-toggle" class="icon-button" aria-label="Benutzer und Team" aria-haspopup="menu" aria-expanded="false" aria-controls="team-user-menu">${icon('user')}</button><div id="team-user-menu" class="dropdown team-user-menu" role="menu" hidden><div class="menu-label">${escape(state.member.name)}<small>${escape(state.organization)} · ${admin()?'Admin':'Mitarbeitend'}</small></div><button id="team-account" role="menuitem">${icon('user')}Mein Konto</button><button id="team-management" role="menuitem" ${admin()?'':'hidden'}>${icon('users')}Team & Zugänge</button><button id="team-outbox-menu" role="menuitem" ${admin()&&state.localMail?'':'hidden'}>${icon('info')}Lokaler Postausgang</button><div class="menu-divider"></div><button id="team-history" role="menuitem">${icon('clock')}Änderungsverlauf</button><button id="team-signout" role="menuitem">Abmelden</button></div></div>`);
     document.querySelector('#app').insertAdjacentHTML('beforebegin',`<div id="team-error-banner" class="team-error-banner" role="alert" hidden><span></span><button id="team-reload" class="secondary-button">Aktualisieren</button></div>`);
-    document.querySelector('.footer').insertAdjacentHTML('beforeend','<div class="team-plan-meta"><button type="button" id="team-week-state" class="team-week-state" aria-live="polite" aria-atomic="true"></button><span id="team-week-lock-state" hidden>Zeiten fixiert</span><span id="team-status" class="team-status" role="status" tabindex="0"></span><span id="team-version" class="team-version"></span></div>');
+    document.querySelector('.footer').insertAdjacentHTML('beforeend','<div class="team-plan-meta"><span class="team-week-controls"><button type="button" id="team-week-lock-toggle" class="team-week-lock-toggle" aria-pressed="false"></button><button type="button" id="team-week-state" class="team-week-state" aria-live="polite" aria-atomic="true"></button></span><span id="team-status" class="team-status" role="status" tabindex="0"></span><span id="team-version" class="team-version"></span></div>');
     document.querySelector('#menu').insertAdjacentHTML('beforeend',`<div class="menu-divider" ${admin()?'':'hidden'}></div><div class="menu-label" ${admin()?'':'hidden'}>PLANUNGSFREIGABE</div><button id="team-publish" ${admin()?'':'hidden'}>${icon('users')}Woche veröffentlichen</button><button id="team-week-lock" ${admin()?'':'hidden'}>${icon('lock')}Wochenzeiten fixieren</button>`);
     const userMenu=document.querySelector('#team-user-menu'),toggle=document.querySelector('#team-user-toggle');
     const closeUserMenu=(focus=false)=>{userMenu.hidden=true;toggle.setAttribute('aria-expanded','false');if(focus)toggle.focus();};
@@ -271,7 +282,7 @@
     document.addEventListener('focusin',event=>{if(!event.target.closest('#team-user-wrap'))closeUserMenu();});
     const userAction=fn=>action(async event=>{closeUserMenu();await fn(event);});
     document.querySelector('#team-publish').onclick=document.querySelector('#team-week-state').onclick=togglePublication;
-    document.querySelector('#team-week-lock').onclick=()=>{const p=period(dateKey(week));administrative('/api/periods/'+dateKey(week),{expectedRevision:state.revision,published:p?.published||false,timesLocked:!p?.timesLocked});};
+    document.querySelector('#team-week-lock').onclick=document.querySelector('#team-week-lock-toggle').onclick=toggleWeekLock;
     document.querySelector('#team-history').onclick=userAction(openAudit);document.querySelector('#team-management').onclick=userAction(openTeam);document.querySelector('#team-account').onclick=()=>{closeUserMenu();account();};document.querySelector('#team-outbox-menu').onclick=userAction(openOutbox);document.querySelector('#team-signout').onclick=userAction(async()=>{await request('/api/auth/sign-out',{});location.assign('/');});document.querySelector('#team-reload').onclick=()=>poll(true);
     const originalModal=openModal;openModal=function(...args){document.querySelector('#modal').classList.remove('team-modal');originalModal(...args);};
     const originalTimeline=renderTimeline;renderTimeline=function(){originalTimeline();decorate();};

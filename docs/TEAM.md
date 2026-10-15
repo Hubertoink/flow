@@ -33,6 +33,12 @@ Im lokalen Modus werden E-Mails im **Benutzericon → Lokaler Postausgang** ange
 
 ## Rechte und Sperren
 
+Das Schloss links neben **Entwurf / Veröffentlicht** zeigt die Zeitsperre der
+angezeigten Woche. Admins können dort alle Wochenzeiten mit einem Klick fixieren
+oder wieder freigeben. Aufgaben bleiben nach ihren bestehenden Rechten bearbeitbar.
+Veröffentlichung und individuelle Schichtsperren werden dabei nicht geändert.
+Ein offenes Schloss bedeutet deshalb, dass keine zusätzliche Wochensperre gilt.
+
 Konten und Mitarbeitendenprofile sind getrennt. Ein Profil kann ohne Zugang geplant werden. Ein Konto kann mit einem Profil verbunden werden, braucht diese Verbindung aber nicht zum Lesen des Teamplans. Die Verbindung kann ein Admin ändern. Ein Profil mit verbundenem Konto oder offener Einladung lässt sich nicht versehentlich löschen.
 
 Es gibt die Grundrollen **Admin** und **Mitarbeitend**. Mitarbeitende erhalten getrennte Rechte für Schichten anlegen, ändern, löschen und Aufgaben zuordnen. Diese gelten für die eigene Person und optional für konkrete weitere Personen. Delegationen können mit einem Enddatum versehen werden; das Datum gilt einschließlich in der Zeitzone Europe/Berlin. Projekte, Phasen, Aufgabenvorlagen, Mitarbeitendenprofile, Pausenregeln und Rechteverwaltung gehören zum Admin.
