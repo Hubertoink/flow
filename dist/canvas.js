@@ -479,7 +479,8 @@ function toggleEditing(id){const next=editing===id?null:id;animateLayout(()=>{cl
 function updateAgendaLabels(){
   document.querySelectorAll('.day-agenda').forEach(agenda=>{
     agenda.querySelectorAll('.activity-outside').forEach(label=>label.hidden=true);
-    if(agenda.closest('.folded'))return;
+    agenda.querySelectorAll('.day-activity-range').forEach(bar=>bar.classList.remove('outside-label'));
+    if(!agenda.closest('.day-column.expanded'))return;
     const bounds=agenda.getBoundingClientRect(),scale=bounds.width/agenda.clientWidth||1,occupied=[];
     const bars=[...agenda.querySelectorAll('.day-activity-range')];
     for(const bar of bars){
@@ -491,10 +492,11 @@ function updateAgendaLabels(){
       const neighbors=bars.filter(other=>other!==bar&&other.parentElement.style.getPropertyValue('--agenda-row')===row).map(other=>other.getBoundingClientRect()).concat(occupied.filter(other=>other.row===row));
       const leftEdge=Math.max(bounds.left,...neighbors.filter(n=>n.right<=r.left+1).map(n=>n.right));
       const rightEdge=Math.min(bounds.right,...neighbors.filter(n=>n.left>=r.right-1).map(n=>n.left));
-      const left=r.left-leftEdge-12*scale,right=rightEdge-r.right-12*scale,onLeft=left>right,space=Math.max(left,right);
-      if(space<60*scale)continue;
+      const left=r.left-leftEdge-22*scale,right=rightEdge-r.right-22*scale,onLeft=left>right,space=Math.max(left,right);
+      if(space<80*scale)continue;
       label.hidden=false;label.style.maxWidth=space/scale+'px';
-      label.style.left=(onLeft?(r.left-bounds.left)/scale-6:(r.right-bounds.left)/scale+6)+'px';label.style.transform=onLeft?'translateX(-100%)':'';
+      bar.classList.add('outside-label');
+      label.style.left=(onLeft?(r.left-bounds.left)/scale-11:(r.right-bounds.left)/scale+11)+'px';label.style.transform=onLeft?'translateX(-100%)':'';
       const box=label.getBoundingClientRect();occupied.push({row,left:box.left,right:box.right});
     }
   });

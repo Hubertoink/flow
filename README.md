@@ -25,6 +25,9 @@ oder direkt angrenzende Zeiten werden zusammengeführt. Zeitliche Lücken bleibe
 sichtbar. Aufgaben ohne zeitliche Überschneidung teilen sich eine Zeile. Beim
 Überfahren erscheinen alle Zeiträume und die zugeordneten Personen. Die Übersicht
 folgt den Aufgaben in den Schichten automatisch und fügt keine eigenen Schichten hinzu.
+Zusätzliche Beschriftungen neben kurzen Aufgabenbalken erscheinen nur im
+ausgeklappten Tag, als schlichter Text mit dezenter Uhrzeit wie bei Schichtaufgaben.
+Die gleich breite Wochenansicht bleibt ohne diese Zusatztexte.
 
 Ein Klick auf eine Schicht öffnet ihren Bearbeitungsmodus, auch beim Klick auf
 ein enthaltenes Aufgabensegment. Weitere Klicks auf den Schichthintergrund lassen
