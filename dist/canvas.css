@@ -162,3 +162,9 @@
 
 /* Notifications stay above modal backdrops without blocking the dialog. */
 .toast[popover]{inset:auto auto 24px 50%;margin:0;width:max-content;max-width:calc(100vw - 32px)}.toast[popover]::backdrop{background:transparent;backdrop-filter:none;pointer-events:none}
+
+/* Overflow labels use theme colors, independent of the task's color. */
+.activity-outside{position:absolute;top:0;display:flex;align-items:center;gap:6px;height:18px;padding:1px 5px;border-radius:4px;background:var(--surface);color:var(--text);border:1px solid var(--border);pointer-events:auto;font-size:9px;white-space:nowrap}.activity-outside b{overflow:hidden;text-overflow:ellipsis;min-width:0;font-weight:550}.activity-outside time{font-size:8px;flex:none}.folded .activity-outside{display:none!important}.custom-task-color>span{margin-right:auto}.custom-task-color .random-color{flex:none;width:28px;height:28px}.custom-task-color{gap:8px}
+
+.activity-outside[hidden]{display:none}
+#team-default-lock-form{padding-bottom:20px;margin-bottom:20px;border-bottom:1px solid var(--border)}

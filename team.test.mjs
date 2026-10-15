@@ -99,6 +99,22 @@ try{
   // A rejected batch must not persist its otherwise allowed first record.
   await update(marcClient,[change('shifts',null,shift('atomic-allowed',marc.id,dayAt(4))),change('people',lee,{...lee,name:'Unauthorized'})],403);assert(!(await admin.call('/api/bootstrap')).plan.shifts.some(s=>s.id==='atomic-allowed'));checks++;
   const precise={...shift('minute-precision',marc.id,dayAt(21)),start:10+10/60,length:8+20/60};await update(marcClient,[change('shifts',null,precise)]);assert.equal(snapshot.plan.shifts.find(s=>s.id===precise.id).length,precise.length);checks++;
+  const originalSettings=(await admin.call('/api/bootstrap')).plan.settings;
+  const fixedSettings={...originalSettings,defaultShiftLock:'times'};
+  const settingsChange=(before,after)=>({collection:'settings',id:'settings',before,after});
+  await update(marcClient,[settingsChange(originalSettings,fixedSettings)],403);
+  await update(admin,[settingsChange(originalSettings,fixedSettings)]);
+  const defaultShift=shift('default-fixed',marc.id,dayAt(35));
+  await update(marcClient,[change('shifts',null,defaultShift)]);
+  current=snapshot.plan.shifts.find(s=>s.id===defaultShift.id);assert.equal(current.lock,'times');checks++;
+  await update(marcClient,[change('shifts',current,{...current,start:11})],403);
+  await update(marcClient,[change('shifts',current,null)],403);
+  const defaultActivity={...activity,id:'default-activity',date:defaultShift.date};
+  await update(marcClient,[change('activities',null,defaultActivity),change('shifts',current,{...current,segments:[{...assigned.segments[0],id:'default-assignment',activityId:defaultActivity.id}]})]);
+  await update(admin,[settingsChange(fixedSettings,originalSettings)]);
+  assert.equal(snapshot.plan.shifts.find(s=>s.id===defaultShift.id).lock,'times');checks++;
+  await update(marcClient,[change('shifts',null,shift('default-open',marc.id,dayAt(36)))]);
+  assert.equal(snapshot.plan.shifts.find(s=>s.id==='default-open').lock,'open');checks++;
   await runBrowserTests({url:config.url,email:'admin@example.org',password});
   const enabled=await admin.call('/api/auth/two-factor/enable',{password});const secret=new URL(enabled.totpURI).searchParams.get('secret');
   let bits=0,value=0;const bytes=[];for(const char of secret.replaceAll('=','')){value=value*32+'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(char);bits+=5;while(bits>=8){bits-=8;bytes.push(Math.floor(value/2**bits)&255);}value&=(1<<bits)-1;}

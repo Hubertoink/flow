@@ -74,6 +74,23 @@ export async function runBrowserTests({url,email,password}){
     await page.locator('#toolkit-form .primary-button').click();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
     await page.locator(`[data-shift="${ownShift}"] .segment`).dblclick();
     assert.equal(await page.locator('#task-label').inputValue(),'Browser-Aufgabe');
+    const oldColor=await page.locator('#task-color').inputValue();
+    await page.locator('.random-color').click();
+    await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+    assert.notEqual(await page.locator('#task-color').inputValue(),oldColor);
+    const startText=await page.locator('#tool-start').inputValue(),parts=startText.split(':').map(Number),endMinutes=parts[0]*60+parts[1]+15;
+    await page.locator('#tool-end').fill(String(Math.floor(endMinutes/60)).padStart(2,'0')+':'+String(endMinutes%60).padStart(2,'0'));
+    await page.locator('#toolkit-form .primary-button').click();
+    await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+    await page.waitForFunction(()=>[...document.querySelectorAll('.activity-outside:not([hidden])')].some(el=>el.textContent.includes('Browser-Aufgabe')));
+    await page.screenshot({path:'.flow-local/task-outside-label.png',fullPage:true});
+    await page.locator(`[data-shift="${ownShift}"] .shift-edit`).click();
+    await page.waitForFunction(id=>!document.querySelector(`[data-shift="${id}"]`).classList.contains('editing'),ownShift);
+    await page.locator(`[data-shift="${ownShift}"]`).evaluate(async el=>{await Promise.all(el.getAnimations({subtree:true}).map(a=>a.finished.catch(()=>{})));});
+    const taskRect=await page.locator(`[data-shift="${ownShift}"] .segment`).boundingBox();
+    await page.mouse.click(taskRect.x+taskRect.width/2,taskRect.y+taskRect.height/2,{button:'right'});
+    assert.equal(await page.locator('#task-label').inputValue(),'Browser-Aufgabe');
+
     await page.getByRole('button',{name:'Aufgabe löschen',exact:true}).click();
     await page.waitForFunction(id=>getShift(id)?.segments.length===0&&!document.body.classList.contains('team-saving'),ownShift);
     assert(await page.locator(`[data-shift="${ownShift}"]`).isVisible(),'Deleting a task must retain its shift');
@@ -90,6 +107,11 @@ export async function runBrowserTests({url,email,password}){
     await page.locator('#more').click();await page.locator('[data-action=image]').click();const pngDownload=page.waitForEvent('download');await page.locator('#start-export').click();const png=await pngDownload;assert(png.suggestedFilename().endsWith('.png'));await page.locator('#export-form').waitFor({state:'hidden'});
     await page.reload();await page.locator('#team-user-toggle').waitFor();
     await page.locator('#team-user-toggle').click();await page.locator('#team-management').click();await page.getByRole('button',{name:'Rechte & Konto'}).first().waitFor();
+    const fixedDefault=page.locator('#team-default-lock-form input[name=fixed]');
+    await fixedDefault.check();await page.locator('#team-default-lock-form button').click();
+    await page.waitForFunction(()=>flowTeam.bootstrap.plan.settings.defaultShiftLock==='times'&&!document.body.classList.contains('team-saving'));
+    await fixedDefault.uncheck();await page.locator('#team-default-lock-form button').click();
+    await page.waitForFunction(()=>flowTeam.bootstrap.plan.settings.defaultShiftLock==='open'&&!document.body.classList.contains('team-saving'));
     await page.getByRole('button',{name:'Rechte & Konto'}).first().click();
     const choice=page.locator('input[name=viewDrafts]');assert((await choice.boundingBox()).width<=20);await page.screenshot({path:'.flow-local/rights-layout.png',fullPage:true});await page.locator('#modal-close').click();
     await page.locator('#team-user-toggle').click();await page.locator('#team-account').click();
@@ -109,7 +131,7 @@ export async function runBrowserTests({url,email,password}){
     const copied=await marcPage.evaluate(()=>data.shifts.filter(s=>s.date>=dateKey(week)&&s.date<=dateKey(addDays(week,6))));assert(copied.some(s=>s.person==='bufdi-test'));assert(!copied.some(s=>s.person==='lee-test'));assert(copied.filter(s=>s.person==='marc-test'||s.person==='bufdi-test').every(s=>s.lock==='open'));
     assert.deepEqual(errors,[]);
     console.log('PASS: Browser-Anmeldung, Schichterstellung, Zeitsperre mit freier Aufgabenplanung, Speicherung/Neuladen, Einladung, Mitarbeiterzugang, Abmeldung und schmale Ansicht.');
-  }catch(error){if(activePage){console.error('Browserdiagnose:',JSON.stringify({errors:observedErrors,state:await activePage.evaluate(()=>({banner:document.querySelector('#team-error-banner')?.textContent,status:document.querySelector('#team-status')?.textContent,saving:document.body.className,shifts:typeof data==='undefined'?[]:data.shifts.map(s=>({id:s.id,lock:s.lock}))})).catch(()=>({}))}));await activePage.screenshot({path:'.flow-local/browser-failure.png',fullPage:true}).catch(()=>{});}throw error;}finally{await browser.close();}
+  }catch(error){console.error(error);if(activePage){console.error('Browserdiagnose:',JSON.stringify({errors:observedErrors,state:await activePage.evaluate(()=>({banner:document.querySelector('#team-error-banner')?.textContent,status:document.querySelector('#team-status')?.textContent,saving:document.body.className,shifts:typeof data==='undefined'?[]:data.shifts.map(s=>({id:s.id,lock:s.lock}))})).catch(()=>({}))}));await activePage.screenshot({path:'.flow-local/browser-failure.png',fullPage:true}).catch(()=>{});}throw error;}finally{await browser.close();}
 }
 
 async function checkLockIndicator(page,id){

@@ -45,6 +45,8 @@ Zusätzlich lässt sich einstellen, ob ein Konto das gesamte Team, nur sich selb
 | Zeiten fixiert | Gesperrt | Mit passendem Recht |
 | Vollständig fixiert | Gesperrt | Gesperrt |
 
+Unter **Benutzermenü → Team und Zugänge** kann ein Admin **Neue Schichten mit fixierten Zeiten anlegen** aktivieren. Die Vorgabe gilt serverseitig für neue Schichten und Kopien aller Personen. Aufgaben bleiben mit den jeweiligen Rechten planbar. Bestehende Schichten werden nicht verändert; zum Bearbeiten fixierter Zeiten hebt ein Admin die Sperre über das Schlüsselicon auf.
+
 Eine Wochensperre schützt zusätzlich sämtliche Arbeitszeiten einschließlich noch nicht vorhandener Schichten. Verbindliche einzelne Aufgaben sind unabhängig geschützt. Admins müssen Sperren ausdrücklich aufheben, bevor sie geschützte Inhalte ändern. Sperränderungen werden protokolliert.
 
 Gemeinsame Tagesaufgaben besitzen eigene IDs. Ihre globale Bearbeitung wird separat freigegeben. Persönliche Aufgabenänderungen verändern keine fremden Zuordnungen durch eine automatische Zusammenführung gleichnamiger Aufgaben. Schichterweiterung oder automatische Schichterstellung durch Aufgabenzuordnung benötigt zusätzlich das entsprechende Arbeitszeitrecht.

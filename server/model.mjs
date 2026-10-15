@@ -17,11 +17,11 @@ const activity=z.object({id,date,type:id,label:z.string().trim().min(1).max(100)
 const phase=z.object({id,name:z.string().trim().min(1).max(80),start:date,end:date,notes:z.string().max(2000).default(''),people:z.array(id).max(1000).default([])}).strict();
 const project=z.object({id,name:z.string().trim().min(1).max(80),start:date,end:date,color,notes:z.string().max(2000).default(''),phases:z.array(phase).min(1).max(500)}).strict();
 const template=z.object({id,name:z.string().trim().min(1).max(80),short:z.string().max(80).optional(),color,hidden:z.boolean().optional()}).strict();
-export const settingsSchema=z.object({breakRules:z.array(z.object({after:quarter.refine(n=>n>=.25),minutes:z.number().int().min(0).max(1439)}).strict().refine(r=>r.minutes<r.after*60)).max(100).default([])}).strict();
+export const settingsSchema=z.object({defaultShiftLock:z.enum(['open','times']).default('open'),breakRules:z.array(z.object({after:quarter.refine(n=>n>=.25),minutes:z.number().int().min(0).max(1439)}).strict().refine(r=>r.minutes<r.after*60)).max(100).default([])}).strict();
 export const entitySchemas={people:person,shifts:shift,activities:activity,projects:project,taskTypes:template};
 export const collections=Object.keys(entitySchemas);
 export const defaultTemplates=[['prep','Vorbereitung','#c482b9'],['admin','Admin','#dba8c4'],['open','Offener Bereich','#c5cdd7'],['project','Projekte','#85b9e2'],['homework','Hausaufgabenhilfe','#e6b078'],['holiday','Ferienprogramm','#ad95df'],['planning','Planung','#8cbea7'],['flex','Flexible Aufgabe','#b9a5eb']].map(([id,name,color])=>({id,name,color}));
-export const emptyPlan=()=>({version:3,people:[],shifts:[],activities:[],projects:[],taskTypes:structuredClone(defaultTemplates),settings:{breakRules:[]}});
+export const emptyPlan=()=>({version:3,people:[],shifts:[],activities:[],projects:[],taskTypes:structuredClone(defaultTemplates),settings:{breakRules:[],defaultShiftLock:'open'}});
 export function parse(schema,value){const result=schema.safeParse(value);if(!result.success)fail(400,'Ungültige Angaben: '+result.error.issues.slice(0,3).map(i=>i.path.join('.')+' '+i.message).join('; '));return result.data;}
 export const equal=(a,b)=>JSON.stringify(stable(a))===JSON.stringify(stable(b));
 function stable(value){if(Array.isArray(value))return value.map(stable);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,stable(value[k])]));return value;}

@@ -54,7 +54,7 @@ export async function loadPlan(db){
   const plan=emptyPlan();for(const collection of collections)plan[collection]=[];
   const [entities,ws]=await Promise.all([db.query('SELECT collection,payload FROM flow_entities ORDER BY collection,id'),workspace(db)]);
   for(const {collection,payload} of entities.rows)plan[collection].push(payload);
-  plan.settings=ws.settings;return plan;
+  plan.settings={defaultShiftLock:'open',...ws.settings};return plan;
 }
 export async function getPeriods(db){return (await db.query("SELECT to_char(week,'YYYY-MM-DD') AS week,published,times_locked AS \"timesLocked\",published_at AS \"publishedAt\" FROM flow_periods ORDER BY week")).rows;}
 export async function getMember(db,userId){

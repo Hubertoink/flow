@@ -28,8 +28,12 @@ export async function applyCommands(db,userId,input,{undoId=null}={}){
     else{if(next&&next.id!==change.id)fail(400,'ID und Datensatz passen nicht zusammen.');after[change.collection]=after[change.collection].filter(e=>e.id!==change.id);if(next)after[change.collection].push(next);}
   }
   derivedActivities(after);validatePlan(after,{previous:before});
-  const changes=diffPlan(before,after),periods=await getPeriods(db);
+  let changes=diffPlan(before,after);const periods=await getPeriods(db);
   authorizeChanges(member,before,after,changes,periods);
+  // Apply the administrator's default only after authorizing the creation.
+  // The client cannot bypass this by submitting an unlocked shift.
+  for(const s of after.shifts)if(!undoId&&!before.shifts.some(old=>old.id===s.id))s.lock=after.settings.defaultShiftLock||'open';
+  changes=diffPlan(before,after);
   // Deleting a staff profile must not leave accounts or pending invitations dangling.
   for(const change of changes.filter(c=>c.collection==='people'&&!c.after)){
     const linked=await db.query('SELECT 1 FROM flow_members WHERE person_id=$1 UNION ALL SELECT 1 FROM flow_invitations WHERE person_id=$1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>now()',[change.id]);

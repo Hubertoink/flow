@@ -50,7 +50,7 @@
   function diff(before,after){const changes=[];for(const collection of collectionNames){const a=new Map(before[collection].map(e=>[e.id,e])),b=new Map(after[collection].map(e=>[e.id,e]));for(const id of new Set([...a.keys(),...b.keys()]))if(!same(a.get(id),b.get(id)))changes.push({collection,id,before:a.get(id)||null,after:b.get(id)||null});}if(!same(before.settings,after.settings))changes.push({collection:'settings',id:'settings',before:before.settings,after:after.settings});return changes;}
   async function submit(){
     scheduled=false;
-    const plan={...clone(data),settings:{breakRules:clone(data.settings.breakRules||[])}};
+    const plan={...clone(data),settings:{breakRules:clone(data.settings.breakRules||[]),defaultShiftLock:data.settings.defaultShiftLock||'open'}};
     const personal=Object.fromEntries(preferenceKeys.filter(k=>data.settings[k]!==undefined).map(k=>[k,clone(data.settings[k])])),changes=diff(base,plan);
     busy(true);let result={auditId:null};
     try{
@@ -121,7 +121,7 @@
   }
   team.decorateToolkit=(s,t,panel)=>{
     const reason=t?taskReason(s,t):timeReason(s),removeReason=t?reason:timeReason(s,'delete')||s.segments.some(t=>t.locked)&&'Enthält verbindliche Aufgaben.';
-    if(reason){panel.querySelectorAll('#tool-start,#tool-end,#task-label,#task-color,.color-swatch,#toolkit-form .primary-button').forEach(el=>el.disabled=true);panel.insertAdjacentHTML('beforeend',`<p class="modal-note">${escape(reason)}</p>`);}
+    if(reason){panel.querySelectorAll('#tool-start,#tool-end,#task-label,#task-color,.color-swatch,.random-color,#toolkit-form .primary-button').forEach(el=>el.disabled=true);panel.insertAdjacentHTML('beforeend',`<p class="modal-note">${escape(reason)}</p>`);}
     const remove=panel.querySelector('#delete-shift');if(remove)remove.disabled=!!removeReason;
     const add=panel.querySelector('#tool-add');if(add)add.disabled=!!taskReason(s);
     if(admin()&&t){
@@ -176,6 +176,8 @@
   async function openTeam(){
     const response=await request('/api/team');
     modal('Team und Zugänge',`<div class="team-toolbar"><p class="modal-note">${escape(state.organization)} · ${response.members.length} Konten</p><button id="team-invite" class="primary-button">Person einladen</button></div><div class="team-rights"><table class="team-table"><thead><tr><th>Konto</th><th>Person / Rolle</th><th>Status</th><th></th></tr></thead><tbody>${response.members.map(m=>`<tr><td><strong>${escape(m.name)}</strong><small>${escape(m.email)}</small></td><td>${escape(data.people.find(p=>p.id===m.personId)?.name||'Nicht verknüpft')}<small>${m.role==='admin'?'Admin':'Mitarbeitend'}</small></td><td>${m.active?'Aktiv':'Deaktiviert'}<small>${m.twoFactorEnabled?'2FA aktiv':'2FA aus'}</small></td><td><button data-edit-member="${m.userId}">Rechte & Konto</button></td></tr>`).join('')}</tbody></table></div><h3>Einladungen</h3>${response.invitations.length?`<div class="team-rights"><table class="team-table"><tbody>${response.invitations.map(i=>`<tr><td>${escape(i.name)}<small>${escape(i.email)}</small></td><td>${i.acceptedAt?'Angenommen':i.revokedAt?'Widerrufen':Date.parse(i.expiresAt)<Date.now()?'Abgelaufen':'Offen bis '+new Date(i.expiresAt).toLocaleDateString('de-DE')}</td><td>${!i.acceptedAt&&!i.revokedAt?`<button data-revoke-invite="${i.id}">Widerrufen</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<p class="modal-note">Noch keine Einladungen.</p>'}${state.localMail?'<button id="team-outbox" class="secondary-button">Lokalen Postausgang öffnen</button>':''}<p class="modal-note">Mitarbeitendenprofile legst du unter Einstellungen → Mitarbeitende an. Eine Einladung verknüpft das Profil mit einem Konto.</p>`);
+    document.querySelector('.team-dialog-body').insertAdjacentHTML('afterbegin',`<form id="team-default-lock-form"><label class="team-choice"><input type="checkbox" name="fixed" ${data.settings.defaultShiftLock==='times'?'checked':''}> Neue Schichten mit fixierten Zeiten anlegen</label><p class="modal-note">Gilt für neue Schichten und Kopien aller Personen. Aufgaben bleiben planbar. Bestehende Schichten bleiben unverändert; ein Admin kann Zeiten über das Schlüsselicon freigeben.</p><button type="submit" class="secondary-button">Schichtvorgabe speichern</button></form>`);
+    document.querySelector('#team-default-lock-form').onsubmit=action(async event=>{event.preventDefault();data.settings.defaultShiftLock=event.currentTarget.elements.fixed.checked?'times':'open';if(await team.save())toast('Schichtvorgabe gespeichert.');});
     document.querySelector('#team-invite').onclick=()=>invitationForm();
     document.querySelectorAll('[data-edit-member]').forEach(button=>button.onclick=()=>memberForm(response.members.find(m=>m.userId===button.dataset.editMember)));
     document.querySelectorAll('[data-revoke-invite]').forEach(button=>button.onclick=action(async()=>{await request('/api/invitations/'+button.dataset.revokeInvite,{},'DELETE');await openTeam();}));
