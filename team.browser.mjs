@@ -80,6 +80,7 @@ export async function runBrowserTests({url,email,password}){
     await page.locator('#toast button').click();
     await page.waitForFunction(id=>getShift(id)?.segments.some(t=>t.label==='Browser-Aufgabe')&&!document.body.classList.contains('team-saving'),ownShift);
     assert(await page.locator(`[data-shift="${ownShift}"] .team-lock-label`).isVisible());
+    await checkLockIndicator(page,ownShift);
     await page.locator('#team-user-toggle').click();await page.locator('#team-history').click();await page.locator('.team-audit-entry').first().waitFor();
     await page.screenshot({path:'.flow-local/audit-compact.png',fullPage:true});
     await page.setViewportSize({width:390,height:844});
@@ -109,4 +110,31 @@ export async function runBrowserTests({url,email,password}){
     assert.deepEqual(errors,[]);
     console.log('PASS: Browser-Anmeldung, Schichterstellung, Zeitsperre mit freier Aufgabenplanung, Speicherung/Neuladen, Einladung, Mitarbeiterzugang, Abmeldung und schmale Ansicht.');
   }catch(error){if(activePage){console.error('Browserdiagnose:',JSON.stringify({errors:observedErrors,state:await activePage.evaluate(()=>({banner:document.querySelector('#team-error-banner')?.textContent,status:document.querySelector('#team-status')?.textContent,saving:document.body.className,shifts:typeof data==='undefined'?[]:data.shifts.map(s=>({id:s.id,lock:s.lock}))})).catch(()=>({}))}));await activePage.screenshot({path:'.flow-local/browser-failure.png',fullPage:true}).catch(()=>{});}throw error;}finally{await browser.close();}
+}
+
+async function checkLockIndicator(page,id){
+  const original=await page.evaluate(id=>({shift:structuredClone(getShift(id)),editing,theme:data.settings.theme}),id);
+  try{
+    for(const theme of ['dark','light','catppuccin'])for(const expanded of [false,true])for(const offset of [null,0,0.25,4]){
+      await page.evaluate(({id,theme,expanded,offset,original})=>{
+        const s=getShift(id);s.lock='times';s.segments=offset===null?[]:[{...original.shift.segments[0],offset,duration:s.length-offset}];
+        data.settings.theme=theme;applyTheme();editing=expanded?id:null;renderTimeline();
+      },{id,theme,expanded,offset,original});
+      const shift=page.locator(`[data-shift="${id}"]`),badge=shift.locator('.team-lock-label');
+      // A compact week column must retain the indicator inside its own shift.
+      await shift.evaluate(el=>el.style.width='125px');
+      const bounds=await shift.boundingBox(),lock=await badge.boundingBox(),name=await shift.locator('.shift-meta').boundingBox();
+      assert(lock.x>=bounds.x&&lock.y>=name.y+name.height&&lock.x+lock.width<=bounds.x+bounds.width&&lock.y+lock.height<=bounds.y+bounds.height,'Lock stays inside the shift below its name');
+      if(offset!==null&&!expanded){const caption=await shift.locator('.task-caption').boundingBox();assert(caption.x>=lock.x+lock.width+4,'Task captions leave space for the lock');}
+      assert.equal(await badge.getAttribute('aria-label'),'Zeiten fixiert');assert.equal((await badge.textContent()).trim(),'');
+      await badge.hover();await page.waitForFunction(()=>!document.querySelector('#flow-tooltip').hidden&&document.querySelector('#flow-tooltip').textContent==='Zeiten fixiert');
+      if(theme==='dark'&&!expanded&&offset===0)await page.screenshot({path:'.flow-local/shift-lock-indicator.png',fullPage:true});
+    }
+    await page.evaluate(id=>{getShift(id).lock='all';renderTimeline();},id);
+    assert.equal(await page.locator(`[data-shift="${id}"] .team-lock-label`).getAttribute('aria-label'),'Vollständig fixiert');
+    await page.evaluate(id=>{getShift(id).lock='open';renderTimeline();},id);
+    assert.equal(await page.locator(`[data-shift="${id}"] .team-lock-label`).count(),0);
+  }finally{
+    await page.evaluate(({id,original})=>{Object.assign(getShift(id),original.shift);editing=original.editing;data.settings.theme=original.theme;applyTheme();renderTimeline();},{id,original});
+  }
 }

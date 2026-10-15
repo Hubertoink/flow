@@ -104,8 +104,9 @@
         button.onpointerdown=e=>e.stopPropagation();button.onkeydown=e=>{e.stopPropagation();if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();showShiftLock(s,button);}};button.onclick=e=>{e.stopPropagation();showShiftLock(s,button);};element.append(button);
       }
       const lockText=s.lock==='all'?'Vollständig fixiert':s.lock==='times'?'Zeiten fixiert':period(s.date)?.timesLocked?'Wochenzeiten fixiert':'';
-      element.querySelector('.team-lock-label')?.remove();if(lockText)element.insertAdjacentHTML('beforeend',`<span class="team-lock-label">${icon('lock')}${lockText}</span>`);
-      for(const t of s.segments)element.querySelector(`[data-task="${t.id}"]`)?.setAttribute('data-team-pinned',String(t.locked));
+      element.classList.toggle('team-locked',!!lockText);
+      element.querySelector('.team-lock-label')?.remove();if(lockText)element.insertAdjacentHTML('beforeend',`<span class="team-lock-label" role="img" aria-label="${lockText}" data-tooltip="${lockText}" tabindex="0">${icon('lock')}</span>`);
+      for(const t of s.segments){const segment=element.querySelector(`[data-task="${t.id}"]`);if(segment){segment.setAttribute('data-team-pinned',String(t.locked));segment.style.setProperty('--team-task-offset',`${t.offset/s.length*100}%`);}}
     });
     if(!admin()){
       document.querySelectorAll('#project-new,#project-empty-add,.project-phase-edge,.focus-edge').forEach(el=>el.hidden=true);
