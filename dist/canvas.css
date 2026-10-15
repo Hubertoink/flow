@@ -168,3 +168,6 @@
 
 .activity-outside[hidden]{display:none}
 #team-default-lock-form{padding-bottom:20px;margin-bottom:20px;border-bottom:1px solid var(--border)}
+.detail-panel,.dropdown{max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain}
+.dropdown{position:fixed;right:auto;bottom:auto}
+.canvas-export-week{margin-top:24px}.canvas-export-week>.canvas-export-title{padding-bottom:12px}.canvas-export-week>.canvas-export-title strong{font-size:16px}.canvas-export .export-outside-month{opacity:.3}.canvas-export .export-outside-month .hours{visibility:hidden}

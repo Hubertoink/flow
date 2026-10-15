@@ -36,7 +36,13 @@ export async function runBrowserTests({url,email,password}){
     await page.locator('.token').filter({hasText:'Admin Test'}).click();await page.locator('.day-cell').first().press('Enter');
     await page.waitForFunction(()=>data.shifts.some(s=>s.person===window.flowTeam.bootstrap.member.personId)&&!document.body.classList.contains('team-saving'));
     const ownShift=await page.evaluate(()=>data.shifts.find(s=>s.person===window.flowTeam.bootstrap.member.personId).id);
-    assert(!await page.locator('#team-week-state').isVisible(),'Unpublished weeks must not show a draft badge');
+    const publication=page.locator('#team-week-state');
+    assert.equal(await publication.textContent(),'Entwurf');assert(await publication.isEnabled());
+    const lockBefore=await page.evaluate(()=>flowTeam.bootstrap.periods.find(p=>p.week===dateKey(week))?.timesLocked||false);
+    await publication.click();await page.waitForFunction(()=>document.querySelector('#team-week-state').textContent==='Veröffentlicht'&&!document.body.classList.contains('team-saving'));
+    assert.equal(await publication.getAttribute('aria-pressed'),'true');
+    assert.equal(await page.evaluate(()=>flowTeam.bootstrap.periods.find(p=>p.week===dateKey(week))?.timesLocked||false),lockBefore);
+    await publication.click();await page.waitForFunction(()=>document.querySelector('#team-week-state').textContent==='Entwurf'&&!document.body.classList.contains('team-saving'));
     await page.locator('.day-head').first().click();
     await page.waitForFunction(()=>!document.querySelector('#timeline').getAnimations().length);
     let releaseSave;
@@ -74,6 +80,13 @@ export async function runBrowserTests({url,email,password}){
     await page.locator('#toolkit-form .primary-button').click();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
     await page.locator(`[data-shift="${ownShift}"] .segment`).dblclick();
     assert.equal(await page.locator('#task-label').inputValue(),'Browser-Aufgabe');
+    for(const size of [{width:1000,height:520},{width:1280,height:720}]){
+      await page.setViewportSize(size);
+      await page.waitForFunction(()=>{const r=document.querySelector('#detail').getBoundingClientRect();return r.left>=11&&r.top>=11&&r.right<=innerWidth-11&&r.bottom<=innerHeight-11;});
+      await page.locator('#detail').evaluate(el=>el.scrollTop=el.scrollHeight);
+      assert(await page.locator('#toolkit-form .primary-button').isVisible());
+      await page.locator('#detail').evaluate(el=>el.scrollTop=0);
+    }
     const oldColor=await page.locator('#task-color').inputValue();
     await page.locator('.random-color').click();
     await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
@@ -149,6 +162,8 @@ async function checkLockIndicator(page,id){
       assert(lock.x>=bounds.x&&lock.y>=name.y+name.height&&lock.x+lock.width<=bounds.x+bounds.width&&lock.y+lock.height<=bounds.y+bounds.height,'Lock stays inside the shift below its name');
       if(offset!==null&&!expanded){const caption=await shift.locator('.task-caption').boundingBox();assert(caption.x>=lock.x+lock.width+4,'Task captions leave space for the lock');}
       assert.equal(await badge.getAttribute('aria-label'),'Zeiten fixiert');assert.equal((await badge.textContent()).trim(),'');
+      const badgeStyle=await badge.evaluate(el=>({color:getComputedStyle(el).color,muted:getComputedStyle(el).getPropertyValue('--muted').trim(),background:getComputedStyle(el).backgroundColor}));
+      assert.notEqual(badgeStyle.background,'rgb(255, 240, 241)','Lock uses theme colors instead of a bright warning badge');
       await badge.hover();await page.waitForFunction(()=>!document.querySelector('#flow-tooltip').hidden&&document.querySelector('#flow-tooltip').textContent==='Zeiten fixiert');
       if(theme==='dark'&&!expanded&&offset===0)await page.screenshot({path:'.flow-local/shift-lock-indicator.png',fullPage:true});
     }

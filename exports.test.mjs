@@ -238,5 +238,37 @@ w.runExportCode(`editProject(null)`);q('#project-name').value='Langfristiges Pro
 w.runExportCode(`data.settings.projectsEnabled=true;data.settings.projectWeeks=12;data.settings.projectHeight=260;addProjectPerson(data.projects[0],data.projects[0].phases[0],data.people[0].id)`);
 const projectTransfer=w.readPlanTransfer(JSON.stringify(w.runExportCode('planTransfer()')));assert.equal(projectTransfer.plan.projects.length,1);assert.equal(projectTransfer.plan.projects[0].phases[0].people.length,1);assert.equal(projectTransfer.plan.settings.projectHeight,260);
 const brokenProject=structuredClone(projectTransfer);brokenProject.plan.projects[0].phases[1].start=brokenProject.plan.projects[0].phases[0].start;assert.throws(()=>w.readPlanTransfer(JSON.stringify({format:'flow-plan',formatVersion:1,week:brokenProject.week,plan:brokenProject.plan})),/lückenlos/);
-console.log('PASS: XLSX roundtrip, net hours, PNG modes, full-plan export/import, legacy migration, validation, confirmation, storage failure and recovery.');
+// Month boundaries, leap day, hidden weekends and partial employment must agree.
+w.runExportCode(`
+  data.people=[{id:'month-person',name:'Monatstest',color:'#8bbadd',hours:8,weeklyHours:40,weekdayHours:[8,8,8,8,8,0,0],from:'2028-02-28',until:'2028-02-29'}];
+  data.settings.breakRules=[{after:6,minutes:30}];data.activities=[];
+  data.shifts=[['before','2028-01-31',8],['weekend','2028-02-27',3],['first','2028-02-28',8],['leap','2028-02-29',8],['after','2028-03-01',8]].map(([id,date,length])=>({id,person:'month-person',date,start:9,length,y:32,segments:[]}));
+  data.activities=[{id:'last-task',date:'2028-02-29',type:'flex',label:'Monatsende',color:'#8bbadd',start:10,end:12,explicit:true}];
+`);
+const month=w.monthlyExportSnapshot('2028-02',false);
+assert.equal(month.start,'2028-02-01');assert.equal(month.end,'2028-02-29');assert.equal(month.allDays.length,29);assert.equal(month.days.length,21);
+assert.deepEqual([...month.shifts].map(s=>s.id),['weekend','first','leap']);
+const monthBook=w.buildWeeklyWorkbook(month),monthRoundtrip=new ExcelJS.Workbook();await monthRoundtrip.xlsx.load(await monthBook.xlsx.writeBuffer());
+const monthPlan=monthRoundtrip.getWorksheet('Monatsplan');assert.equal(monthPlan.columnCount,24);
+assert.equal(monthPlan.getCell('W5').value,18);assert.equal(monthPlan.getCell('X5').value,16);
+assert.equal(monthPlan.getCell('U5').value,7.5);assert.equal(monthPlan.getCell('V5').value,7.5);
+assert.equal(monthPlan.getCell('W6').value.result,18);assert.equal(monthRoundtrip.getWorksheet('Schichtdetails').rowCount,4);
+assert(monthRoundtrip.getWorksheet('Tagesaufgaben').getColumn(2).values.includes('Monatsende'));
+for(const [period,count] of [['2027-02',28],['2028-02',29],['2026-04',30],['2026-12',31]]){
+  const snap=w.monthlyExportSnapshot(period,true);assert.equal(snap.days.length,count);
+}
+assert.throws(()=>w.monthlyExportSnapshot('2026-13'),/gültigen Monat/);
+for(const expanded of [false,true]){
+  const snap=w.monthlyExportSnapshot('2028-02',true),root=w.buildMonthlyCanvasExport(snap,expanded);
+  assert.equal(root.querySelectorAll('.canvas-export-week').length,5);
+  assert.equal(root.querySelectorAll('.day-column:not(.export-outside-month)').length,29);
+  assert.equal(root.querySelectorAll('.shift').length,3);
+  assert.equal(root.querySelectorAll('[data-shift=before],[data-shift=after]').length,0);
+  assert.equal(root.querySelectorAll('.export-outside-month .day-activity').length,0);
+  assert.match(root.textContent,/Februar 2028/);assert.match(root.textContent,/Monatsende/);root.remove();
+}
+w.openExport('excel');q('#export-period').value='month';q('#export-period').dispatchEvent(new w.Event('change'));
+assert.equal(q('#export-month-field').hidden,false);assert.equal(q('#export-month').disabled,false);
+q('#export-period').value='week';q('#export-period').dispatchEvent(new w.Event('change'));assert.equal(q('#export-month').disabled,true);
+console.log('PASS: XLSX roundtrip, weekly/monthly net hours and targets, leap/month boundaries, PNG modes and month rows, plan transfer/recovery.');
 w.close();

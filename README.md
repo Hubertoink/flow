@@ -295,6 +295,19 @@ für Rezept-Update und Prüfung. Store-Review und mögliche Fehlerbehebung komme
 
 ## Exporte
 
+Die Dialoge **Als Excel exportieren** und **Canvas als Bild exportieren** bieten
+unter **Zeitraum** die angezeigte Woche oder einen frei wählbaren Kalendermonat.
+Der Excel-Monatsplan zeigt Netto-Stunden je Person und Tag, Monats-Ist und
+Monats-Soll sowie vollständige Schichtdetails und Tagesaufgaben. Das Monats-Soll
+summiert das Tagesstundenmodell innerhalb des Beschäftigungszeitraums; die
+Summen enthalten auch ausgeblendete Wochenenden. Das Monatsbild ordnet die
+Wochen untereinander an und lässt Tage außerhalb des Monats leer.
+Samstag, Sonntag und die Darstellung der Schichten bleiben wählbar.
+
+Aufgaben-, Projekt- und Dropdown-Dialoge bleiben auch nach zusätzlichen Feldern
+oder einer Änderung der Fenstergröße im sichtbaren Fenster. Lange Inhalte
+scrollen innerhalb des Dialogs. Schlosssymbole verwenden die Farben des Designs.
+
 ### Plan zwischen Rechnern übertragen
 
 Über **Weitere Optionen → Kompletten Plan exportieren** wird eine JSON-Datei

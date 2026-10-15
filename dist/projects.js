@@ -70,8 +70,7 @@ function projectPanel(title,html,anchor){
   closePanel();const panel=$('#detail');panel.hidden=false;
   panel.scrollTop=0;
   panel.innerHTML=`<div class="toolkit-top"><strong>${esc(title)}</strong><button id="project-close" class="icon-button" aria-label="Schließen">${icon('close')}</button></div>${html}`;
-  $('#project-close').onclick=closePanel;const r=anchor?.getBoundingClientRect()||$('#projects').getBoundingClientRect();
-  panel.style.left=clamp(r.left,12,innerWidth-panel.offsetWidth-12)+'px';panel.style.top=clamp(r.top-panel.offsetHeight-10,12,innerHeight-panel.offsetHeight-12)+'px';
+  $('#project-close').onclick=closePanel;positionFloatingPanel(panel,anchor||$('#projects'),true);
 }
 function editProject(id,anchor){
   const project=getProject(id),start=project?.start||dateKey(week),end=project?.end||dateKey(addDays(week,41));

@@ -327,7 +327,7 @@ function assignActivity(id,person,shiftId,anchor){
   const panel=$('#detail');panel.hidden=false;panel.innerHTML=`<div class="toolkit-top"><strong>${esc(p.name)} zuordnen</strong><button class="icon-button" id="assignment-close" aria-label="Schließen">${icon('close')}</button></div><p class="modal-note">${outside?'Die Aufgabe reicht über die Schicht hinaus. ':''}${conflict?'In diesem Zeitraum liegen bereits andere Aufgaben.':''}</p><div class="assignment-choices">${parts.length?'<button class="primary-button" id="assignment-part">Nur freie Teilzeiten zuordnen</button>':''}${outside&&!conflict?'<button class="secondary-button" id="assignment-extend">Schicht erweitern und zuordnen</button>':''}<button class="secondary-button" id="assignment-cancel">Abbrechen</button></div>`;
   panel.querySelector('#assignment-part')?.addEventListener('click',()=>apply(parts));panel.querySelector('#assignment-extend')?.addEventListener('click',()=>apply([[a.start,a.end]],true));
   panel.querySelector('#assignment-close').onclick=panel.querySelector('#assignment-cancel').onclick=closePanel;
-  const r=anchor?.getBoundingClientRect()||{left:innerWidth/2, bottom:innerHeight/2};panel.style.left=clamp(r.left,12,innerWidth-332)+'px';panel.style.top=clamp(r.bottom+8,12,innerHeight-panel.offsetHeight-12)+'px';
+  positionFloatingPanel(panel,anchor);
 }
 function changeActivityRange(a,start,end){
   if(window.flowTeam&&!window.flowTeam.checkActivities())return false;
@@ -344,8 +344,7 @@ function editActivity(id,source){
   panel.hidden=false;
   panel.innerHTML=`<div class="toolkit-top"><strong>Aufgabe</strong><span>${hours(a.end-a.start)}</span><button type="button" id="activity-close" class="icon-button" aria-label="Toolkit schließen">${icon('close')}</button></div><form id="activity-form"><label class="full-field"><span class="field-label">Aufgabe</span><input id="activity-name" maxlength="60" required value="${esc(a.label)}"></label><div class="form-row"><label><span class="field-label">Beginn</span><input type="text" inputmode="numeric" placeholder="HH:MM" id="activity-start" value="${fmtTime(a.start)}" required></label><label><span class="field-label">Ende</span><input type="text" inputmode="numeric" placeholder="HH:MM" id="activity-end" value="${fmtTime(a.end)}" required></label></div><p class="modal-note">${assigned.length?'Zugeordnet: '+esc([...new Set(assigned.map(({s})=>data.people.find(p=>p.id===s.person)?.name))].join(', ')):'Noch unbesetzt · Aufgabe auf eine Schicht oder eine Person auf die Aufgabe ziehen.'}</p><p id="activity-error" class="form-error"></p><div class="assignment-list">${assigned.map(({s,t})=>`<button type="button" class="activity-assignment" data-unassign="${t.id}" aria-label="Zuordnung von ${esc(data.people.find(p=>p.id===s.person)?.name)} entfernen"><span>${esc(data.people.find(p=>p.id===s.person)?.name)}<time>${taskRange(s,t)}</time></span>${icon('close')}</button>`).join('')}</div><div class="toolkit-actions"><button type="button" id="activity-delete" class="delete-button" aria-label="Tagesaufgabe löschen">${icon('trash')}</button><button class="primary-button">Übernehmen</button></div></form>`;
   $('#activity-close').onclick=closePanel;
-  const r=anchor?.getBoundingClientRect()||{left:innerWidth/2,bottom:innerHeight/2};
-  panel.style.left=clamp(r.left,12,innerWidth-panel.offsetWidth-12)+'px';panel.style.top=clamp(r.bottom+12,12,innerHeight-panel.offsetHeight-12)+'px';
+  positionFloatingPanel(panel,anchor);
   $('#activity-form').onsubmit=e=>{e.preventDefault();const name=$('#activity-name').value.trim()||task(a.type).name;if(data.activities.some(other=>other.id!==a.id&&activityKey(other.date,other)===activityKey(a.date,{type:a.type,label:name}))){$('#activity-error').textContent='Diese Aufgabe ist für den Tag bereits vorhanden.';return;}const start=toHour($('#activity-start').value),end=toHour($('#activity-end').value);if(!Number.isFinite(start)||!Number.isFinite(end)||!changeActivityRange(a,start,end)){$('#activity-error').textContent='Bitte passende Zeiten zwischen 08:00 und 24:00 wählen.';return;}a.label=$('#activity-name').value.trim()||task(a.type).name;activityAssignments(a).forEach(({t})=>t.label=a.label);persist();refresh();closePanel();};
   document.querySelectorAll('[data-unassign]').forEach(b=>b.onclick=()=>{a.explicit=true;data.shifts.forEach(s=>s.segments=s.segments.filter(t=>t.id!==b.dataset.unassign));persist();refresh();editActivity(id);});
   $('#activity-delete').onclick=()=>{const before=structuredClone(data);data.shifts.forEach(s=>s.segments=s.segments.filter(t=>t.activityId!==id));data.activities=data.activities.filter(x=>x.id!==id);persist();refresh();closePanel();toast('Tagesaufgabe und Zuordnungen gelöscht.',()=>{data=before;persist();refresh();});};
@@ -596,6 +595,32 @@ function moveTask(s,t,original,wanted){
   section.splice(section.indexOf(t),1);section.splice(target>from?section.length:0,0,t);
   section.forEach(x=>{x.offset=cursor;cursor+=x.duration;});
 }
+const floatingPanels=new Map();
+function positionFloatingPanel(panel,anchor,above=false,alignRight=false){
+  if(!floatingPanels.has(panel)){
+    const observer=typeof ResizeObserver==='function'?new ResizeObserver(()=>fitFloatingPanel(panel)):null;
+    observer?.observe(panel);floatingPanels.set(panel,{observer});
+  }
+  Object.assign(floatingPanels.get(panel),{anchor,above,alignRight,rect:anchor?.getBoundingClientRect()});
+  fitFloatingPanel(panel);
+}
+function fitFloatingPanel(panel){
+  if(panel.hidden||!panel.isConnected)return;
+  const state=floatingPanels.get(panel);if(!state)return;
+  const viewport=window.visualViewport,margin=12,left=(viewport?.offsetLeft||0)+margin,top=(viewport?.offsetTop||0)+margin;
+  const right=left+(viewport?.width||innerWidth)-2*margin,bottom=top+(viewport?.height||innerHeight)-2*margin;
+  panel.style.maxWidth=Math.max(0,right-left)+'px';panel.style.maxHeight=Math.max(0,bottom-top)+'px';
+  const r=state.anchor?.isConnected?state.anchor.getBoundingClientRect():state.rect||{left:(left+right)/2,right:(left+right)/2,top:(top+bottom)/2,bottom:(top+bottom)/2};
+  const width=panel.offsetWidth,height=panel.offsetHeight,below=r.bottom+10,above=r.top-height-10;
+  const y=state.above&&above>=top?above:below+height<=bottom?below:above>=top?above:below;
+  panel.style.left=clamp(state.alignRight?r.right-width:r.left,left,Math.max(left,right-width))+'px';
+  panel.style.top=clamp(y,top,Math.max(top,bottom-height))+'px';
+}
+function refitFloatingPanels(event){floatingPanels.forEach((state,panel)=>{if(!event?.target?.nodeType||!panel.contains(event.target))fitFloatingPanel(panel);});}
+window.addEventListener('resize',refitFloatingPanels);
+document.addEventListener('scroll',refitFloatingPanels,true);
+window.visualViewport?.addEventListener('resize',refitFloatingPanels);
+window.visualViewport?.addEventListener('scroll',refitFloatingPanels);
 function closePanel(){selected=null;$('#detail').hidden=true;document.querySelectorAll('.shift.active').forEach(el=>el.classList.remove('active'));}
 function showToolkit(id,taskId){
   const s=getShift(id);if(!s)return;if(editing!==id)animateLayout(()=>{editing=id;renderTimeline();});selected=id;const p=data.people.find(p=>p.id===s.person),t=s.segments.find(t=>t.id===taskId),panel=$('#detail');
@@ -611,8 +636,8 @@ function showToolkit(id,taskId){
     else {if(s.segments.some(x=>x.offset+x.duration>end-start)){$('#tool-error').textContent='Die Aufgaben passen nicht in diese Schicht. Bitte zuerst kürzen oder verschieben.';return;}s.start=start;s.length=end-start;}
     persist();closePanel();renderTimeline();
   };
-  const r=anchor.getBoundingClientRect();panel.style.left=clamp(r.left,12,window.innerWidth-320)+'px';panel.style.top=Math.max(12,Math.min(r.bottom+12,window.innerHeight-panel.offsetHeight-12))+'px';
   window.flowTeam?.decorateToolkit(s,t,panel);
+  positionFloatingPanel(panel,anchor);
 }
 // Pointer capture keeps dragging stable at cell boundaries and on touch screens.
 function startGesture(e){
@@ -798,14 +823,14 @@ weekCopySurface.addEventListener('keydown',pastePickedWeek,true);
 $('.footer-label').textContent='AUFGABEN';
 $('#detail').setAttribute('aria-label','Schicht-Toolkit');
 function renderLegend(){$('#legend').innerHTML=tasks.filter(t=>!t.hidden).map(t=>`<button draggable="true" class="legend-item" data-type="${t.id}"><i class="legend-dot" style="--segment:${t.color}"></i>${esc(t.name)}</button>`).join('');document.querySelectorAll('[data-type]').forEach(el=>{el.ondragstart=e=>{drag={kind:'task',id:el.dataset.type};e.dataTransfer.setData('text/plain',JSON.stringify(drag));e.dataTransfer.effectAllowed='copy';};el.ondragend=clearDrop;el.onclick=()=>{const s=getShift(selected||editing);if(s)addTask(s,el.dataset.type,0);else toast('Aufgabe in eine Schicht ziehen oder zuerst eine Schicht auswählen.');};});}
-$('#more').onclick=()=>{const hidden=!$('#menu').hidden;$('#menu').hidden=hidden;$('#more').setAttribute('aria-expanded',String(!hidden));};
+$('#more').onclick=()=>{const hidden=!$('#menu').hidden;$('#menu').hidden=hidden;$('#more').setAttribute('aria-expanded',String(!hidden));if(!hidden)positionFloatingPanel($('#menu'),$('#more'),false,true);};
 $('#menu').querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{closeMenu();({excel:()=>openExport('excel'),image:()=>openExport('image'),export:exportCSV,backup:()=>exportPlan(),import:()=>openPlanImport(),print:()=>window.print(),settings:()=>openSettings()})[b.dataset.action]();});
 document.addEventListener('click',e=>{if(!e.target.closest('.menu-wrap'))closeMenu();if(!e.target.closest('#week-info,#week-info-toggle'))closeWeekInfo();if(!e.composedPath().some(node=>node.matches?.('#detail,.shift,.legend-item,.day-agenda,#projects')))closePanel();});
 document.addEventListener('keydown',event=>{if($('#modal').open){if(event.key==='Escape'){event.preventDefault();$('#modal-close').click();}return;}if(event.key==='Escape'){endGesture(true);editing=null;copyPicked=false;closeWeekInfo();picked=null;clearDrop();closePanel();closeMenu();refresh();}});
 const surface=document.createElement('div');surface.className='canvas-surface';$('#grid-scroll').append(surface);surface.append($('#timeline'));
 $('.board').insertAdjacentHTML('beforeend',`<div class="canvas-zoom" role="group" aria-label="Canvas-Zoom"><button id="zoom-out" aria-label="Herauszoomen">${icon('minus')}</button><button id="zoom-value" aria-label="Zoom auf 100 Prozent zurücksetzen">100%</button><button id="zoom-in" aria-label="Hineinzoomen">${icon('plus')}</button></div>`);
 $('#zoom-out').onclick=()=>setZoom(zoom-.25);$('#zoom-in').onclick=()=>setZoom(zoom+.25);$('#zoom-value').onclick=()=>setZoom(1);
-$('#grid-scroll').addEventListener('scroll',closePanel);window.addEventListener('resize',()=>{closePanel();applyZoom();});
+window.addEventListener('resize',()=>{applyZoom();refitFloatingPanels();});
 if(window.ResizeObserver)new ResizeObserver(applyZoom).observe($('#grid-scroll'));
 if(window.ResizeObserver){const trayObserver=new ResizeObserver(()=>positionCopyTray());trayObserver.observe($('.dock'));trayObserver.observe($('#tokens'));}
 $('.dock').insertAdjacentHTML('beforeend','<div id="copy-tray" class="copy-tray" hidden></div>');
