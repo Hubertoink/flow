@@ -24,6 +24,10 @@ Ein Dreieck mit Pluszeichen in der Größe der anderen Farbpunkte kennzeichnet s
 Die Aufgaben bleiben in einer Zeile; bei wenig Platz lässt sich die Leiste
 horizontal scrollen.
 
+Die Wochenübersicht zeigt je Person die Differenz zwischen Netto-Ist und Soll:
+Mehrstunden rot mit Pluszeichen, Minderstunden blau mit Minuszeichen und
+Gleichstand neutral mit „± 0 h“. Das Vorzeichen steht über der Stundenzahl.
+
 Über den Personenschichten zeigt eine schmale Aufgaben-Spur, was am jeweiligen
 Tag stattfindet. Gleich benannte Aufgaben werden einmal angezeigt; überlappende
 oder direkt angrenzende Zeiten werden zusammengeführt. Zeitliche Lücken bleiben
