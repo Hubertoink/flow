@@ -130,7 +130,9 @@ export async function runBrowserTests({url,email,password}){
     await page.screenshot({path:'.flow-local/audit-compact-mobile.png',fullPage:true});
     await page.setViewportSize({width:1280,height:720});await page.locator('#modal-close').click();
     await page.locator('#more').click();await page.locator('[data-action=image]').click();const pngDownload=page.waitForEvent('download');await page.locator('#start-export').click();const png=await pngDownload;assert(png.suggestedFilename().endsWith('.png'));await page.locator('#export-form').waitFor({state:'hidden'});
+    const weekBeforeReload=await page.evaluate(()=>dateKey(week));
     await page.reload();await page.locator('#team-user-toggle').waitFor();
+    assert.equal(await page.evaluate(()=>dateKey(week)),weekBeforeReload,'Reload keeps the selected week');
     await page.locator('#team-user-toggle').click();await page.locator('#team-management').click();await page.getByRole('button',{name:'Rechte & Konto'}).first().waitFor();
     const fixedDefault=page.locator('#team-default-lock-form input[name=fixed]');
     await fixedDefault.check();await page.locator('#team-default-lock-form button').click();

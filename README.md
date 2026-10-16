@@ -19,6 +19,10 @@ Docker/mittwald und Sicherungen: [Teamversion betreiben](docs/TEAM.md).
 
 ## Oberfläche
 
+Beim Neuladen bleibt die zuletzt geöffnete Woche im selben Browser-Tab erhalten.
+Die Auswahl ist je angemeldetem Konto getrennt. **Heute** springt weiterhin zur
+aktuellen Woche; neue Tabs starten mit der aktuellen Woche.
+
 „Flexible Aufgabe“ steht in der Aufgabenleiste immer hinter den übrigen Vorlagen.
 Ein Dreieck mit Pluszeichen in der Größe der anderen Farbpunkte kennzeichnet sie.
 Die Aufgaben bleiben in einer Zeile; bei wenig Platz lässt sich die Leiste
@@ -161,6 +165,8 @@ ziehen, auch wenn sie die ganze Schicht ausfüllen. Die kleinste Dauer beträgt
 wird die angrenzende Aufgabe entsprechend angepasst. Doppelklick öffnet weiterhin
 die genaue Zeiteingabe; **Übernehmen** speichert und schließt den Editor.
 Ungültige Zeiten lassen ihn mit einem Hinweis offen.
+Beim Löschen oder Herausziehen einer Aufgabe bleibt ihre Zeit unzugeordnet;
+Beginn und Ende angrenzender Aufgaben werden dabei nicht verändert.
 
 Die Desktop-App hat keine separate native Titelleiste. Freie Flächen im App-Kopf
 sind zum Verschieben des Fensters nutzbar; die nativen Schaltflächen zum

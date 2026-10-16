@@ -147,7 +147,9 @@ const {app}=require('electron');
       localStorage.setItem('flow-smoke-persistence','ok');
       return {origin:location.origin,excelBytes:bytes.length,logo:document.querySelector('.brand-logo').naturalWidth};
     })()`);
+    const weekBeforeReload=await window.webContents.executeJavaScript('changeWeek(7);dateKey(week)');
     window.reload();await new Promise(resolve=>window.webContents.once('did-finish-load',resolve));
+    if(await window.webContents.executeJavaScript('dateKey(week)')!==weekBeforeReload)throw new Error('Viewed week did not survive reload');
     const persisted=await window.webContents.executeJavaScript(`localStorage.getItem('flow-smoke-persistence')`);
     if(persisted!=='ok')throw new Error('Local storage did not survive reload');
     await window.webContents.executeJavaScript(`(()=>{

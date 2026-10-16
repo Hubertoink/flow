@@ -34,6 +34,64 @@ const dom=boot(),w=dom.window,d=w.document,q=s=>d.querySelector(s),all=s=>[...d.
 }
 assert.equal(all('.shift').length,0);assert.equal(all('.person-name').length,0);assert.equal(all('.token').length,4);assert.equal(q('.token time').textContent,'8 h');assert.equal(q('.save-status'),null);assert.equal(all('#settings-button svg').length,1);assert.equal(q('#settings-button').closest('.header-actions')!==null,true);assert.equal(q('#dock-toggle'),null);
 {
+  // Reload restores the viewed week without changing the shared plan or other tabs.
+  const viewDom=boot(),vw=viewDom.window,vq=s=>vw.document.querySelector(s),run=code=>vw.runCanvasCode(code);
+  const key=run('WEEK_VIEW_KEY'),currentWeek=run('dateKey(week)'),plan=vw.localStorage.getItem('flow-plan-v1');
+  vq('#next').click();vq('#next').click();vq('#prev').click();
+  const nextWeek=run('dateKey(week)');assert.notEqual(nextWeek,currentWeek);
+  assert.equal(vw.sessionStorage.getItem(key),nextWeek);assert.equal(vw.localStorage.getItem('flow-plan-v1'),plan);
+  const reload=value=>boot(JSON.parse(plan),w=>w.sessionStorage.setItem(key,value));
+  for(const value of [nextWeek,'2026-10-19','2026-10-26','2026-12-28','2027-01-04']){
+    const again=reload(value);assert.equal(again.window.runCanvasCode('dateKey(week)'),value);assert.equal(again.window.document.querySelector('.day-cell').dataset.date,value);again.window.close();
+  }
+  for(const value of ['invalid','2026-02-30','2026-13-01','2026-00-10','']){
+    const invalid=reload(value);assert.equal(invalid.window.runCanvasCode('dateKey(week)'),currentWeek);invalid.window.close();
+  }
+  vq('#today').click();assert.equal(run('dateKey(week)'),currentWeek);assert.equal(vw.sessionStorage.getItem(key),currentWeek);
+  const fresh=boot();assert.equal(fresh.window.runCanvasCode('dateKey(week)'),currentWeek);fresh.window.close();
+  const unavailable=boot(null,w=>{Object.defineProperty(w,'sessionStorage',{get(){throw new Error('Storage unavailable');}});});
+  unavailable.window.document.querySelector('#next').click();assert.equal(unavailable.window.runCanvasCode('dateKey(week)'),nextWeek);unavailable.window.close();
+  // Account views use separate keys even on the same website.
+  const teamPlan=JSON.parse(plan),account=boot(null,w=>{
+    w.sessionStorage.setItem('flow-week-v1:other-user','2028-02-28');w.sessionStorage.setItem('flow-week-v1:this-user',nextWeek);
+    w.flowTeam={initialPlan:teamPlan,bootstrap:{member:{userId:'this-user'}},save(){},syncActivities(){}};
+  });
+  assert.equal(account.window.runCanvasCode('dateKey(week)'),nextWeek);account.window.close();viewDom.window.close();
+}
+// Deleting a task leaves its time unassigned, without extending either neighbour.
+for(const [neighbour,offset,openOffset] of [['next',2.5,3.5],['previous',2,4.5],['both',2,3]])for(const method of ['dialog','drag']){
+  const removalDom=boot(),rw=removalDom.window,rd=rw.document,rq=s=>rd.querySelector(s),run=code=>rw.runCanvasCode(code),state=()=>JSON.parse(rw.localStorage.getItem('flow-plan-v1'));
+  run(`data.shifts=[{id:'removal-shift',person:'lea',date:dateKey(week),start:11.5,length:8.5,y:32,segments:[
+    {id:'meeting',type:'planning',offset:.5,duration:1.5},
+    {id:'open',type:'open',offset:${openOffset},duration:${8.5-openOffset}}
+  ]}];persist();refresh()`);
+  const before=state(),cell=rq('.day-cell'),transfer={setData(){},effectAllowed:''};
+  cell.getBoundingClientRect=()=>({left:0,top:0,width:1600});
+  rq('[data-type="flex"]').ondragstart({dataTransfer:transfer});
+  cell.ondrop({preventDefault(){},target:rq('.shift'),dataTransfer:transfer,clientX:(11.5+offset-8)*100});
+  const inserted=state(),added=inserted.shifts[0].segments.find(t=>t.type==='flex');
+  assert.equal(added.offset,offset);assert.equal(added.duration,1);
+  if(method==='dialog')rq('#delete-shift').click();
+  else{
+    rq('#close-panel').click();const shift=rq('.shift'),task=rq(`[data-task="${added.id}"]`);
+    shift.getBoundingClientRect=()=>({left:0,right:1600,top:0,bottom:44});
+    shift.querySelector('.task-track').getBoundingClientRect=()=>({left:0,right:1600,top:0,bottom:100});
+    shift.onpointerdown({button:0,currentTarget:shift,target:task,clientX:600,clientY:50,pointerId:1});
+    rd.dispatchEvent(new rw.MouseEvent('pointermove',{clientX:600,clientY:200,bubbles:true,cancelable:true}));
+    rd.dispatchEvent(new rw.Event('pointerup'));
+  }
+  assert.deepEqual(state().shifts,before.shifts,`${method}: ${neighbour} neighbour keeps its original times`);
+  assert.deepEqual(state().activities,before.activities,'The daily overview keeps the original task ranges');
+  assert.match(rq('[data-task="open"] .task-time').textContent,new RegExp(`${run('fmtTime(11.5+'+openOffset+')')}–20:00`));
+  const reloaded=boot(state());assert.deepEqual(JSON.parse(reloaded.window.localStorage.getItem('flow-plan-v1')).shifts,before.shifts);reloaded.window.close();
+  rq('#toast button').click();
+  const undone=state().shifts[0],restored=undone.segments.find(t=>t.id===added.id);
+  assert.deepEqual(undone.segments.filter(t=>t.id!==added.id),before.shifts[0].segments,'Undo preserves neighbouring tasks');
+  // The unassigned daily activity is recreated when its task is restored.
+  assert.deepEqual({...restored,activityId:added.activityId},added,'Undo restores the removed task with its original times');
+  removalDom.window.close();
+}
+{
   const clickDom=boot(),cw=clickDom.window,cq=s=>cw.document.querySelector(s),run=code=>cw.runCanvasCode(code);
   run(`data.shifts=[
     {id:'click-empty',person:'lea',date:dateKey(week),start:10,length:4,y:32,segments:[]},
@@ -201,7 +259,7 @@ const positions=saved().shifts.map(s=>s.y);const nikoId=saved().shifts[0].id;ass
 function pointerTask(edge,dx,dy=0,cancel=false){const el=kayla(),target=el.querySelector(`[data-task="${saved().shifts[1].segments.find(t=>t.type==='admin').id}"]`),node=edge?target.querySelector(`[data-edge="${edge}"]`):target;el.parentElement.getBoundingClientRect=()=>({width:1200});el.getBoundingClientRect=()=>({left:0,right:1200,top:0,bottom:44});el.querySelector('.task-track').getBoundingClientRect=()=>({left:0,right:1200,top:0,bottom:80});el.onpointerdown({button:0,currentTarget:el,target:node,clientX:300,clientY:25,pointerId:1});d.dispatchEvent(new w.MouseEvent('pointermove',{clientX:300+dx,clientY:25+dy,bubbles:true,cancelable:true}));d.dispatchEvent(new w.Event(cancel?'pointercancel':'pointerup'));}
 pointerTask('task-end',75);let s=saved().shifts[1];assert.equal(s.segments.find(t=>t.type==='admin').duration,2);assert.equal(s.segments.find(t=>t.type==='open').duration,6);assert.equal(s.length,8);
 const before=JSON.stringify(s);pointerTask('task-end',100,0,true);assert.equal(JSON.stringify(saved().shifts[1]),before);
-pointerTask(null,0,120);assert.equal(saved().shifts[1].segments.length,1);assert.equal(saved().shifts[1].segments[0].duration,8);q('#toast button').click();assert.equal(saved().shifts[1].segments.length,2);
+pointerTask(null,0,120);assert.equal(saved().shifts[1].segments.length,1);assert.deepEqual(saved().shifts[1].segments,JSON.parse(before).segments.filter(t=>t.type!=='admin'));q('#toast button').click();assert.equal(saved().shifts[1].segments.length,2);
 await new Promise(r=>setTimeout(r,1));if(kayla().querySelector('.shift-edit').getAttribute('aria-pressed')!=='true')kayla().querySelector('.shift-edit').click();q('[data-type="flex"]').click();q('#task-label').value='Werkstatt';q('#task-label').dispatchEvent(new w.Event('change'));assert.ok(saved().shifts[1].segments.some(t=>t.label==='Werkstatt'));
 assert.equal(all('.color-swatch').length,20);q('[data-color="#85b9e2"]').click();assert.equal(saved().shifts[1].segments.find(t=>t.label==='Werkstatt').color,'#85b9e2');q('#task-color').value='#112233';q('#task-color').dispatchEvent(new w.Event('input'));assert.equal(saved().shifts[1].segments.find(t=>t.label==='Werkstatt').color,'#112233');const custom=kayla().querySelector(`[data-task="${saved().shifts[1].segments.find(t=>t.label==='Werkstatt').id}"]`);assert.equal(custom.style.getPropertyValue('--task-ink'),'#ffffff');assert.match(custom.querySelector('.task-time').textContent,/\d{2}:\d{2}–\d{2}:\d{2}/);
 q('#settings-button').click();q('#new-preset').click();q('#preset-form [name=name]').value='Sport';submit('#preset-form');assert.ok(all('.legend-item').some(e=>e.textContent==='Sport'));

@@ -38,7 +38,16 @@ data.shifts.forEach((s,index)=>{
 });
 compactShifts();
 data.version=3;
-let week=monday(parseDate(todayKey())), focusDate=null, selected=null, editing=null, picked=null, drag=null, gesture=null, suppressClick=false, toastTimer,expandTimer,hoverDay;
+const WEEK_VIEW_KEY=`flow-week-v1:${window.flowTeam?.bootstrap?.member?.userId||'local'}`;
+function restoreWeek(){
+  try{
+    const value=sessionStorage.getItem(WEEK_VIEW_KEY);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(value)&&dateKey(parseDate(value))===value)return monday(parseDate(value));
+  }catch{}
+  return monday(parseDate(todayKey()));
+}
+function rememberWeek(){try{sessionStorage.setItem(WEEK_VIEW_KEY,dateKey(week));}catch{}}
+let week=restoreWeek(), focusDate=null, selected=null, editing=null, picked=null, drag=null, gesture=null, suppressClick=false, toastTimer,expandTimer,hoverDay;
 let copiedShift=null,copiedTask=null,copiedDay=null,copiedWeek=null,copyPicked=false;
 const DAY_START=8, DAY_END=24, DAY_SPAN=DAY_END-DAY_START;
 let zoom=Number(data.settings.zoom)||1;
@@ -441,6 +450,7 @@ function miniShiftMarkup(s){
 }
 function renderTimeline(){
   syncActivities();
+  rememberWeek();
   const ds=dates(),last=addDays(week,6);
   $('#date-range').textContent=`${week.toLocaleDateString('de-DE',{day:'numeric',month:'short'})} – ${last.toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'})}`;
   $('#week-number').textContent='KW '+isoWeek(week);
@@ -580,7 +590,10 @@ function addTask(s,type,offset){
   if(s.segments.length){const gap=findGap(s,offset,1);if(gap)Object.assign(t,gap);else{const target=s.segments.find(x=>offset>=x.offset&&offset<=x.offset+x.duration)||s.segments.at(-1);if(target.duration<.5){toast('Für eine weitere Aufgabe werden mindestens 30 Minuten benötigt.');return;}t.duration=Math.min(1,target.duration-.25);if(offset<target.offset+target.duration/2){t.offset=target.offset;target.offset+=t.duration;target.duration-=t.duration;}else{target.duration-=t.duration;t.offset=target.offset+target.duration;}}}
   s.segments.push(t);editing=s.id;selected=s.id;persist();renderTimeline();if(type==='flex'){showToolkit(s.id,t.id);$('#task-label')?.select();}
 }
-function removeTask(s,t){const sorted=s.segments.toSorted((a,b)=>a.offset-b.offset),index=sorted.indexOf(t),next=sorted[index+1],prev=sorted[index-1];if(next&&Math.abs(next.offset-t.offset-t.duration)<.001){next.offset=t.offset;next.duration+=t.duration;}else if(prev&&Math.abs(prev.offset+prev.duration-t.offset)<.001)prev.duration+=t.duration;s.segments=s.segments.filter(x=>x!==t);}
+function removeTask(s,t){
+  // Removing an assignment leaves a gap; neighbouring task times stay explicit.
+  s.segments=s.segments.filter(x=>x!==t);
+}
 function resizeTask(s,t,original,edge,delta){
   s.segments.forEach(x=>Object.assign(x,original.find(o=>o.id===x.id)));
   const sorted=s.segments.toSorted((a,b)=>a.offset-b.offset),index=sorted.indexOf(t);
