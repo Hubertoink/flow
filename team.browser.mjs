@@ -103,6 +103,41 @@ export async function runBrowserTests({url,email,password}){
     await page.locator('.random-color').click();
     await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
     assert.notEqual(await page.locator('#task-color').inputValue(),oldColor);
+    assert(await page.locator('#detail').isVisible());
+    let finishColor;
+    const colorGate=new Promise(resolve=>finishColor=resolve);
+    const delayColor=async route=>{const response=await route.fetch();await colorGate;await route.fulfill({response});};
+    await page.route('**/api/plan/commands',delayColor);
+    try{
+      await page.locator('.random-color').click();await page.waitForFunction(()=>document.body.classList.contains('team-saving'));
+      const dice=await page.locator('.random-color').boundingBox();
+      await page.mouse.click(dice.x+dice.width/2,dice.y+dice.height/2);
+      assert(await page.locator('#detail').isVisible(),'Clicks during a color save must not dismiss the editor');
+      finishColor();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+      assert(await page.locator('#detail').isVisible());
+    }finally{finishColor();await page.unroute('**/api/plan/commands',delayColor);}
+    const draftEnd=await page.locator('#tool-end').inputValue();
+    await page.locator('#tool-end').fill('19:15');
+    for(const locked of [true,false]){
+      await page.locator('#team-pin-assignment').setChecked(locked);await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+      assert(await page.locator('#detail').isVisible(),'Changing task commitment keeps its editor open');
+      assert.equal(await page.locator('#tool-end').inputValue(),'19:15','Unsubmitted time edits survive lock changes');
+      assert.equal(await page.locator('#tool-end').isDisabled(),locked);
+      assert.equal(await page.locator('#team-pin-assignment').isChecked(),locked);
+    }
+    await page.locator('#tool-end').fill(draftEnd);
+    const changedPlan=async route=>{const response=await route.fetch(),next=await response.json();next.revision++;await route.fulfill({response,json:next});};
+    await page.route('**/api/bootstrap',changedPlan);
+    await page.locator('#team-plan-update').waitFor();
+    assert(!await page.locator('#team-error-banner').isVisible());
+    for(const theme of ['dark','light','catppuccin']){
+      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+      const notice=await page.locator('#team-plan-update').boundingBox(),lock=await weekLock.boundingBox();assert(notice.x+notice.width<=lock.x);
+      await page.screenshot({path:`.flow-local/team-update-${theme}.png`,fullPage:true});
+    }
+    await page.evaluate(()=>applyTheme());await page.unroute('**/api/bootstrap',changedPlan);
+    await page.locator('#team-plan-reload').click();await page.waitForFunction(()=>document.querySelector('#team-plan-update').hidden);
+    await page.locator(`[data-shift="${ownShift}"] .segment`).dblclick();
     const startText=await page.locator('#tool-start').inputValue(),parts=startText.split(':').map(Number),endMinutes=parts[0]*60+parts[1]+15;
     await page.locator('#tool-end').fill(String(Math.floor(endMinutes/60)).padStart(2,'0')+':'+String(endMinutes%60).padStart(2,'0'));
     await page.locator('#toolkit-form .primary-button').click();

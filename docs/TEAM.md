@@ -33,6 +33,12 @@ Im lokalen Modus werden E-Mails im **Benutzericon → Lokaler Postausgang** ange
 
 ## Rechte und Sperren
 
+Wenn ein anderer Bearbeitungsstand verfügbar ist, erscheint **Teamplan geändert ·
+Aktualisieren** rechts unten links neben dem Wochenschloss in einer zum Theme
+passenden blauen Schrift. Ein Klick lädt den aktuellen Stand. Der Aufgabeneditor
+bleibt bei Farbwechseln und beim Umschalten von **Verbindliche Aufgabe** geöffnet;
+noch nicht übernommene Zeitangaben bleiben erhalten.
+
 Das Schloss links neben **Entwurf / Veröffentlicht** zeigt die Zeitsperre der
 angezeigten Woche. Admins können dort alle Wochenzeiten mit einem Klick fixieren
 oder wieder freigeben. Aufgaben bleiben nach ihren bestehenden Rechten bearbeitbar.

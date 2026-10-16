@@ -133,6 +133,7 @@ const taskColor=t=>/^#[0-9a-f]{6}$/i.test(t.color||'')?t.color:task(t.type).colo
 function taskInk(t){const hex=taskColor(t).slice(1),rgb=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722>.179?'#172032':'#ffffff';}
 const taskRange=(s,t)=>`${fmtTime(s.start+t.offset)}–${fmtTime(s.start+t.offset+t.duration)}`;
 function randomTaskColor(current){let color;do{const bytes=new Uint8Array(3);crypto.getRandomValues(bytes);color='#'+[...bytes].map(n=>(100+Math.floor(n*120/256)).toString(16).padStart(2,'0')).join('');}while(color===current);return color;}
+function newTaskColor(){const used=new Set([...data.shifts.flatMap(s=>s.segments),...(data.activities||[])].map(t=>taskColor(t).toLowerCase()));let color;do{color=randomTaskColor(task('flex').color);}while(used.has(color));return color;}
 const colorDice=()=>`<button type="button" class="random-color icon-button" aria-label="Zufällige Farbe" title="Zufällige Farbe">${icon('dice')}</button>`;
 function paletteField(value){const current=String(value).toLowerCase();return `<fieldset class="task-colors palette-field"><legend>Farbe</legend><div class="color-swatches">${taskPalette.map((color,i)=>`<button type="button" class="color-swatch" data-color="${color}" style="--swatch:${color}" aria-label="Farbe ${i+1}: ${color}" aria-pressed="${current===color}"></button>`).join('')}</div><label class="custom-task-color"><span>Eigene Farbe</span>${colorDice()}<input name="color" type="color" value="${esc(value)}"></label></fieldset>`;}
 function wirePalette(form){const input=form.querySelector('input[name="color"]'),sync=()=>form.querySelectorAll('.color-swatch').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===input.value.toLowerCase())));form.querySelectorAll('.color-swatch').forEach(b=>b.onclick=()=>{input.value=b.dataset.color;sync();});form.querySelector('.random-color').onclick=()=>{input.value=randomTaskColor(input.value);sync();};input.oninput=sync;}
@@ -308,7 +309,7 @@ function createActivity(type,date,start){
   if(window.flowTeam&&!window.flowTeam.checkActivities())return;
   const existing=data.activities.find(a=>activityKey(a.date,a)===activityKey(date,{type}));
   if(existing){editActivity(existing.id);return existing;}
-  const a={id:uid(),date,type,label:task(type).name,color:task(type).color,start:clamp(snap(start),8,23),end:clamp(snap(start),8,23)+1,explicit:true};
+  const a={id:uid(),date,type,label:task(type).name,color:type==='flex'?newTaskColor():task(type).color,start:clamp(snap(start),8,23),end:clamp(snap(start),8,23)+1,explicit:true};
   data.activities.push(a);persist();refresh();if(type==='flex')editActivity(a.id);return a;
 }
 function activityAssignments(a){return data.shifts.flatMap(s=>s.segments.filter(t=>t.activityId===a.id).map(t=>({s,t})));}
@@ -587,6 +588,7 @@ function findGap(s,wanted,size,ignore){
 function addTask(s,type,offset){
   if(window.flowTeam&&!window.flowTeam.checkTasks(s))return;
   const t={id:uid(),type,label:type==='flex'?'Neue Aufgabe':'',offset:0,duration:s.length};
+  if(type==='flex')t.color=newTaskColor();
   if(s.segments.length){const gap=findGap(s,offset,1);if(gap)Object.assign(t,gap);else{const target=s.segments.find(x=>offset>=x.offset&&offset<=x.offset+x.duration)||s.segments.at(-1);if(target.duration<.5){toast('Für eine weitere Aufgabe werden mindestens 30 Minuten benötigt.');return;}t.duration=Math.min(1,target.duration-.25);if(offset<target.offset+target.duration/2){t.offset=target.offset;target.offset+=t.duration;target.duration-=t.duration;}else{target.duration-=t.duration;t.offset=target.offset+target.duration;}}}
   s.segments.push(t);editing=s.id;selected=s.id;persist();renderTimeline();if(type==='flex'){showToolkit(s.id,t.id);$('#task-label')?.select();}
 }
@@ -597,8 +599,9 @@ function removeTask(s,t){
 function resizeTask(s,t,original,edge,delta){
   s.segments.forEach(x=>Object.assign(x,original.find(o=>o.id===x.id)));
   const sorted=s.segments.toSorted((a,b)=>a.offset-b.offset),index=sorted.indexOf(t);
-  if(edge==='task-start'){const prev=sorted[index-1],touching=prev&&Math.abs(prev.offset+prev.duration-t.offset)<.001,min=prev?(touching?prev.offset+.25:prev.offset+prev.duration):0,change=clamp(delta,min-t.offset,t.duration-.25);if(touching)prev.duration+=change;t.offset+=change;t.duration-=change;}
-  else {const next=sorted[index+1],end=t.offset+t.duration,max=next?next.offset+next.duration-.25:s.length,change=clamp(delta,.25-t.duration,max-end);if(next&&Math.abs(next.offset-end)<.001){next.offset+=change;next.duration-=change;}else if(next&&end+change>next.offset){next.duration-=end+change-next.offset;next.offset=end+change;}t.duration+=change;}
+  // Touching edges never couple tasks: only the grabbed task changes.
+  if(edge==='task-start'){const prev=sorted[index-1],min=prev?prev.offset+prev.duration:0,change=clamp(delta,min-t.offset,t.duration-.25);t.offset+=change;t.duration-=change;}
+  else {const next=sorted[index+1],end=t.offset+t.duration,max=next?next.offset:s.length;t.duration+=clamp(delta,.25-t.duration,max-end);}
 }
 function moveTask(s,t,original,wanted){
   // Reset to the gesture snapshot: repeated pointer events cannot accumulate drift.

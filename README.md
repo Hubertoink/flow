@@ -162,7 +162,10 @@ Wochenansichten ohne Miniaturpillen.
 Im Bearbeitungsmodus einer Schicht lassen sich Aufgaben an **beiden Enden**
 ziehen, auch wenn sie die ganze Schicht ausfüllen. Die kleinste Dauer beträgt
 15 Minuten, Aufgaben bleiben innerhalb der Schicht. An gemeinsamen Grenzen
-wird die angrenzende Aufgabe entsprechend angepasst. Doppelklick öffnet weiterhin
+bleiben die Zeiten der Nachbaraufgaben unverändert; beim Zurückziehen entsteht
+wieder eine Lücke. Neue flexible Aufgaben erhalten einmalig eine eigene zufällige
+Farbe. Farbwahl und Verbindlichkeit lassen den Aufgabendialog geöffnet.
+Doppelklick öffnet weiterhin
 die genaue Zeiteingabe; **Übernehmen** speichert und schließt den Editor.
 Ungültige Zeiten lassen ihn mit einem Hinweis offen.
 Beim Löschen oder Herausziehen einer Aufgabe bleibt ihre Zeit unzugeordnet;

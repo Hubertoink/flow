@@ -257,7 +257,7 @@ kayla().querySelector('.shift-edit').click();q('[data-type="open"]').click();ass
 q('[data-type="admin"]').click();assert.equal(saved().shifts[1].segments.length,2);
 const positions=saved().shifts.map(s=>s.y);const nikoId=saved().shifts[0].id;assert.equal(parseFloat(q('[data-shift="'+nikoId+'"]').style.top),positions[0]+108);assert.deepEqual([...kayla().querySelectorAll('.segment')].map(el=>el.style.getPropertyValue('--row')),['0','1']);kayla().querySelector('.shift-edit').click();assert.equal(parseFloat(q('[data-shift="'+nikoId+'"]').style.top),positions[0]);assert.deepEqual(saved().shifts.map(s=>s.y),positions);kayla().querySelector('.shift-edit').click();
 function pointerTask(edge,dx,dy=0,cancel=false){const el=kayla(),target=el.querySelector(`[data-task="${saved().shifts[1].segments.find(t=>t.type==='admin').id}"]`),node=edge?target.querySelector(`[data-edge="${edge}"]`):target;el.parentElement.getBoundingClientRect=()=>({width:1200});el.getBoundingClientRect=()=>({left:0,right:1200,top:0,bottom:44});el.querySelector('.task-track').getBoundingClientRect=()=>({left:0,right:1200,top:0,bottom:80});el.onpointerdown({button:0,currentTarget:el,target:node,clientX:300,clientY:25,pointerId:1});d.dispatchEvent(new w.MouseEvent('pointermove',{clientX:300+dx,clientY:25+dy,bubbles:true,cancelable:true}));d.dispatchEvent(new w.Event(cancel?'pointercancel':'pointerup'));}
-pointerTask('task-end',75);let s=saved().shifts[1];assert.equal(s.segments.find(t=>t.type==='admin').duration,2);assert.equal(s.segments.find(t=>t.type==='open').duration,6);assert.equal(s.length,8);
+pointerTask('task-end',75);let s=saved().shifts[1];assert.equal(s.segments.find(t=>t.type==='admin').duration,1);assert.equal(s.segments.find(t=>t.type==='open').duration,7);assert.equal(s.length,8);
 const before=JSON.stringify(s);pointerTask('task-end',100,0,true);assert.equal(JSON.stringify(saved().shifts[1]),before);
 pointerTask(null,0,120);assert.equal(saved().shifts[1].segments.length,1);assert.deepEqual(saved().shifts[1].segments,JSON.parse(before).segments.filter(t=>t.type!=='admin'));q('#toast button').click();assert.equal(saved().shifts[1].segments.length,2);
 await new Promise(r=>setTimeout(r,1));if(kayla().querySelector('.shift-edit').getAttribute('aria-pressed')!=='true')kayla().querySelector('.shift-edit').click();q('[data-type="flex"]').click();q('#task-label').value='Werkstatt';q('#task-label').dispatchEvent(new w.Event('change'));assert.ok(saved().shifts[1].segments.some(t=>t.label==='Werkstatt'));
@@ -312,6 +312,23 @@ scheduleQuery('[data-preset="prep"]').click();assert.ok(scheduleQuery('#hide-pre
 scheduleDocument.querySelectorAll('.day-head')[4].click();assert.equal(scheduleQuery('[data-person="niko"] time').textContent,'7 h');const friday=scheduleDocument.querySelectorAll('.day-cell')[4];friday.getBoundingClientRect=()=>({left:0,top:0,width:1200});scheduleQuery('[data-person="niko"]').click();scheduleDocument.querySelectorAll('.day-cell')[4].getBoundingClientRect=()=>({left:0,top:0,width:1200});scheduleDocument.querySelectorAll('.day-cell')[4].dispatchEvent(new scheduleWindow.MouseEvent('click',{clientX:100,clientY:100,bubbles:true}));assert.equal(scheduleSaved().shifts[0].length,7);
 scheduleDocument.querySelectorAll('.day-column')[0].onpointerenter();assert.equal(scheduleQuery('[data-person="niko"] time').textContent,'8 h');scheduleDocument.querySelectorAll('.day-column')[0].onpointerleave();assert.equal(scheduleQuery('[data-person="niko"] time').textContent,'7 h');scheduleDocument.querySelectorAll('.day-head')[1].click();assert.equal(scheduleQuery('[data-person="niko"] time').textContent,'0 h');scheduleQuery('[data-person="niko"]').ondragstart({dataTransfer:transfer});const tuesday=scheduleDocument.querySelectorAll('.day-cell')[1];tuesday.getBoundingClientRect=()=>({left:0,top:0,width:1200});tuesday.ondragover({preventDefault(){},dataTransfer:transfer,target:tuesday,clientX:100,clientY:100});assert.equal(transfer.dropEffect,'copy');assert.equal(scheduleQuery('.drop-rejection'),null);assert.match(scheduleQuery('.drop-preview').textContent,/3 h/);tuesday.ondrop({preventDefault(){},target:tuesday,clientX:100,clientY:100});assert.equal(scheduleSaved().shifts.find(s=>s.person==='niko'&&s.date===tuesday.dataset.date).length,3);assert.deepEqual(scheduleSaved().people.find(person=>person.id==='niko').weekdayHours,[8,0,8,8,7,0,0]);scheduleWindow.close();
 const boundaryFixture=structuredClone(snapshot);
+{
+  const fixture=structuredClone(snapshot);
+  fixture.shifts=[{id:'independent',person:'niko',date:snapshot.shifts[0].date,start:8,length:10,y:32,segments:[{id:'first',type:'flex',offset:2,duration:3},{id:'second',type:'flex',offset:6,duration:3}]}];
+  const dom=boot(fixture),win=dom.window,run=win.runCanvasCode;
+  const resize=(id,edge,delta)=>run(`{const s=data.shifts[0];resizeTask(s,s.segments.find(t=>t.id==='${id}'),structuredClone(s.segments),'${edge}',${delta});persist();}`);
+  const times=()=>JSON.parse(win.localStorage.getItem('flow-plan-v1')).shifts[0].segments.map(t=>[t.offset,t.duration]);
+  resize('first','task-end',1);assert.deepEqual(times(),[[2,4],[6,3]]);
+  resize('first','task-end',-.5);assert.deepEqual(times(),[[2,3.5],[6,3]]);
+  resize('first','task-end',5);assert.deepEqual(times(),[[2,4],[6,3]]);
+  resize('second','task-start',.5);assert.deepEqual(times(),[[2,4],[6.5,2.5]]);
+  resize('second','task-start',-5);assert.deepEqual(times(),[[2,4],[6,3]]);
+  run("addTask(data.shifts[0],'flex',0)");const color=run('data.shifts[0].segments.at(-1).color');assert.match(color,/^#[0-9a-f]{6}$/);
+  run("addTask(data.shifts[0],'flex',1)");assert.notEqual(run('data.shifts[0].segments.at(-1).color'),color);
+  const activityColor=run("createActivity('flex',dateKey(addDays(week,1)),10).color");assert.notEqual(activityColor,color);
+  run('persist();refresh()');assert.equal(run('data.shifts[0].segments.at(-2).color'),color);
+  win.close();
+}
 boundaryFixture.shifts=[{id:'boundary-shift',person:'niko',date:snapshot.shifts[0].date,start:8,length:8,y:32,segments:[{id:'boundary-task',type:'flex',label:'Ganzer Tag',offset:0,duration:8}]}];
 const boundaryDom=boot(boundaryFixture),bw=boundaryDom.window,bq=s=>bw.document.querySelector(s),bs=()=>JSON.parse(bw.localStorage.getItem('flow-plan-v1'));
 bq('.shift-edit').click();

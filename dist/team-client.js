@@ -22,7 +22,7 @@
     try{const response=await fetch(url,{method,credentials:'same-origin',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal});const result=await response.json();if(!response.ok){const error=new Error(result.message||'Die Anfrage ist fehlgeschlagen.');error.status=response.status;throw error;}return result;}
     catch(error){if(!error.status)error.message='Der Server ist nicht erreichbar. Änderungen wurden nicht bestätigt.';throw error;}finally{clearTimeout(timeout);}
   }
-  function banner(message){const element=document.querySelector('#team-error-banner');if(!element)return;element.hidden=!message;element.querySelector('span').textContent=message||'';}
+  function banner(message,{changed=false}={}){const element=document.querySelector('#team-error-banner'),notice=document.querySelector('#team-plan-update');if(notice)notice.hidden=!changed;if(!element)return;element.hidden=!message||changed;element.querySelector('span').textContent=changed?'':message||'';}
   function status(message){
     const el=document.querySelector('#team-status');if(!el)return;
     const label=message||(offline?'Verbindung unterbrochen':saving?'Wird gespeichert …':'Gespeichert'),value=offline?'offline':saving?'saving':'ok';
@@ -90,8 +90,8 @@
     }}
     plan.activities=plan.activities.filter(a=>a.explicit||ranges.has(a.id));for(const a of plan.activities)if(ranges.has(a.id))Object.assign(a,ranges.get(a.id));
   };
-  async function administrative(url,body,method='PUT'){
-    if(saving||scheduled)return;busy(true);try{const next=await request(url,body,method);if(next.plan)apply(next);else{const current=await request('/api/bootstrap');apply(current);}banner('');return next;}
+  async function administrative(url,body,method='PUT',options={}){
+    if(saving||scheduled)return;busy(true);try{const next=await request(url,body,method);if(next.plan)apply(next,options);else{const current=await request('/api/bootstrap');apply(current,options);}banner('');return next;}
     catch(error){banner(error.message);toast(error.message);if(error.status===409)try{apply(await request('/api/bootstrap'));}catch{}return null;}
     finally{busy(false);}
   }
@@ -154,12 +154,15 @@
   }
   team.decorateToolkit=(s,t,panel)=>{
     const reason=t?taskReason(s,t):timeReason(s),removeReason=t?reason:timeReason(s,'delete')||s.segments.some(t=>t.locked)&&'Enthält verbindliche Aufgaben.';
-    if(reason){panel.querySelectorAll('#tool-start,#tool-end,#task-label,#task-color,.color-swatch,.random-color,#toolkit-form .primary-button').forEach(el=>el.disabled=true);panel.insertAdjacentHTML('beforeend',`<p class="modal-note">${escape(reason)}</p>`);}
+    panel.querySelectorAll('#tool-start,#tool-end,#task-label,#task-color,.color-swatch,.random-color,#toolkit-form .primary-button').forEach(el=>el.disabled=!!reason);
+    panel.querySelector('.team-task-reason')?.remove();
+    if(reason)panel.insertAdjacentHTML('beforeend',`<p class="modal-note team-task-reason">${escape(reason)}</p>`);
     const remove=panel.querySelector('#delete-shift');if(remove)remove.disabled=!!removeReason;
     const add=panel.querySelector('#tool-add');if(add)add.disabled=!!taskReason(s);
     if(admin()&&t){
-      panel.insertAdjacentHTML('beforeend',`<div class="team-lock-controls"><label><span>Verbindliche Aufgabe</span><input id="team-pin-assignment" type="checkbox" ${t.locked?'checked':''}></label></div>`);
-      panel.querySelector('#team-pin-assignment').onchange=e=>administrative(`/api/shifts/${s.id}/assignments/${t.id}/lock`,{expectedRevision:state.revision,locked:e.target.checked});
+      if(!panel.querySelector('#team-pin-assignment'))panel.insertAdjacentHTML('beforeend','<div class="team-lock-controls"><label><span>Verbindliche Aufgabe</span><input id="team-pin-assignment" type="checkbox"></label></div>');
+      const pin=panel.querySelector('#team-pin-assignment');pin.checked=!!t.locked;
+      pin.onchange=async e=>{const locked=e.target.checked;await administrative(`/api/shifts/${s.id}/assignments/${t.id}/lock`,{expectedRevision:state.revision,locked},'PUT',{close:false});if(!panel.hidden&&panel.querySelector('#team-pin-assignment')===pin)team.decorateToolkit(s,t,panel);};
     }
   };
   let shiftLockMenu=null;
@@ -262,7 +265,7 @@
       const rightsChanged=!same(next.member,state.member);
       if(force||rightsChanged){apply(next);banner('');}
       else if(next.revision!==state.revision){
-        if(gesture||editing||document.querySelector('#modal').open||document.querySelector('#project-focus')?.open)banner('Der Teamplan wurde geändert. Aktualisiere ihn, bevor du weiter bearbeitest.');
+        if(gesture||editing||document.querySelector('#modal').open||document.querySelector('#project-focus')?.open)banner('Der Teamplan wurde geändert. Aktualisiere ihn, bevor du weiter bearbeitest.',{changed:true});
         else{apply(next);banner('');toast('Teamplan aktualisiert.');}
       }status();
     }catch(error){if(error.status===401){location.assign('/');return;}offline=true;document.body.classList.add('team-offline');banner(error.message+' Du kannst nach Wiederherstellung der Verbindung aktualisieren.');status();}finally{pollBusy=false;}
@@ -270,7 +273,7 @@
   team.init=()=>{
     document.querySelector('#settings-button').insertAdjacentHTML('afterend',`<div id="team-user-wrap" class="menu-wrap"><button id="team-user-toggle" class="icon-button" aria-label="Benutzer und Team" aria-haspopup="menu" aria-expanded="false" aria-controls="team-user-menu">${icon('user')}</button><div id="team-user-menu" class="dropdown team-user-menu" role="menu" hidden><div class="menu-label">${escape(state.member.name)}<small>${escape(state.organization)} · ${admin()?'Admin':'Mitarbeitend'}</small></div><button id="team-account" role="menuitem">${icon('user')}Mein Konto</button><button id="team-management" role="menuitem" ${admin()?'':'hidden'}>${icon('users')}Team & Zugänge</button><button id="team-outbox-menu" role="menuitem" ${admin()&&state.localMail?'':'hidden'}>${icon('info')}Lokaler Postausgang</button><div class="menu-divider"></div><button id="team-history" role="menuitem">${icon('clock')}Änderungsverlauf</button><button id="team-signout" role="menuitem">Abmelden</button></div></div>`);
     document.querySelector('#app').insertAdjacentHTML('beforebegin',`<div id="team-error-banner" class="team-error-banner" role="alert" hidden><span></span><button id="team-reload" class="secondary-button">Aktualisieren</button></div>`);
-    document.querySelector('.footer').insertAdjacentHTML('beforeend','<div class="team-plan-meta"><span class="team-week-controls"><button type="button" id="team-week-lock-toggle" class="team-week-lock-toggle" aria-pressed="false"></button><button type="button" id="team-week-state" class="team-week-state" aria-live="polite" aria-atomic="true"></button></span><span id="team-status" class="team-status" role="status" tabindex="0"></span><span id="team-version" class="team-version"></span></div>');
+    document.querySelector('.footer').insertAdjacentHTML('beforeend','<div class="team-plan-meta"><span id="team-plan-update" class="team-plan-update" role="status" hidden><button type="button" id="team-plan-reload" aria-label="Der Teamplan wurde geändert. Jetzt aktualisieren." data-tooltip="Der Teamplan wurde geändert. Aktualisiere ihn, bevor du weiter bearbeitest.">Teamplan geändert · Aktualisieren</button></span><span class="team-week-controls"><button type="button" id="team-week-lock-toggle" class="team-week-lock-toggle" aria-pressed="false"></button><button type="button" id="team-week-state" class="team-week-state" aria-live="polite" aria-atomic="true"></button></span><span id="team-status" class="team-status" role="status" tabindex="0"></span><span id="team-version" class="team-version"></span></div>');
     document.querySelector('#menu').insertAdjacentHTML('beforeend',`<div class="menu-divider" ${admin()?'':'hidden'}></div><div class="menu-label" ${admin()?'':'hidden'}>PLANUNGSFREIGABE</div><button id="team-publish" ${admin()?'':'hidden'}>${icon('users')}Woche veröffentlichen</button><button id="team-week-lock" ${admin()?'':'hidden'}>${icon('lock')}Wochenzeiten fixieren</button>`);
     const userMenu=document.querySelector('#team-user-menu'),toggle=document.querySelector('#team-user-toggle');
     const closeUserMenu=(focus=false)=>{userMenu.hidden=true;toggle.setAttribute('aria-expanded','false');if(focus)toggle.focus();};
@@ -283,6 +286,7 @@
     const userAction=fn=>action(async event=>{closeUserMenu();await fn(event);});
     document.querySelector('#team-publish').onclick=document.querySelector('#team-week-state').onclick=togglePublication;
     document.querySelector('#team-week-lock').onclick=document.querySelector('#team-week-lock-toggle').onclick=toggleWeekLock;
+    document.querySelector('#team-plan-reload').onclick=()=>poll(true);
     document.querySelector('#team-history').onclick=userAction(openAudit);document.querySelector('#team-management').onclick=userAction(openTeam);document.querySelector('#team-account').onclick=()=>{closeUserMenu();account();};document.querySelector('#team-outbox-menu').onclick=userAction(openOutbox);document.querySelector('#team-signout').onclick=userAction(async()=>{await request('/api/auth/sign-out',{});location.assign('/');});document.querySelector('#team-reload').onclick=()=>poll(true);
     const originalModal=openModal;openModal=function(...args){document.querySelector('#modal').classList.remove('team-modal');originalModal(...args);};
     const originalTimeline=renderTimeline;renderTimeline=function(){originalTimeline();decorate();};
@@ -292,7 +296,7 @@
     const originalPhase=editProjectPhase;editProjectPhase=function(...args){if(!admin()){toast('Projektphasen kann nur ein Admin bearbeiten.');return;}originalPhase(...args);};
     const originalFocus=openProjectFocus;openProjectFocus=function(...args){if(!admin()){toast('Projektphasen kann nur ein Admin bearbeiten.');return;}originalFocus(...args);};
     document.addEventListener('keydown',event=>{if((saving||offline)&&!event.target.closest('#team-user-wrap,#team-error-banner')){event.preventDefault();event.stopImmediatePropagation();}},true);
-    for(const type of ['input','change','submit','pointerdown','dragstart'])document.addEventListener(type,event=>{if((saving||offline)&&!event.target.closest('#team-user-wrap,#team-error-banner')){event.preventDefault();event.stopImmediatePropagation();}},true);
+    for(const type of ['input','change','submit','pointerdown','dragstart','click'])document.addEventListener(type,event=>{if((saving||offline)&&!event.target.closest('#team-user-wrap,#team-error-banner')){event.preventDefault();event.stopImmediatePropagation();}},true);
     window.addEventListener('beforeunload',event=>{if(saving||scheduled){event.preventDefault();event.returnValue='';}});
     setInterval(()=>poll(),5000);window.addEventListener('online',()=>poll(true));decorate();
   };
