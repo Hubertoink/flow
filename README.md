@@ -19,6 +19,11 @@ Docker/mittwald und Sicherungen: [Teamversion betreiben](docs/TEAM.md).
 
 ## Oberfläche
 
+„Flexible Aufgabe“ steht in der Aufgabenleiste immer hinter den übrigen Vorlagen.
+Ein Dreieck mit Pluszeichen in der Größe der anderen Farbpunkte kennzeichnet sie.
+Die Aufgaben bleiben in einer Zeile; bei wenig Platz lässt sich die Leiste
+horizontal scrollen.
+
 Über den Personenschichten zeigt eine schmale Aufgaben-Spur, was am jeweiligen
 Tag stattfindet. Gleich benannte Aufgaben werden einmal angezeigt; überlappende
 oder direkt angrenzende Zeiten werden zusammengeführt. Zeitliche Lücken bleiben
