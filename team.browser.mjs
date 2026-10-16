@@ -104,6 +104,26 @@ export async function runBrowserTests({url,email,password}){
     await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
     assert.notEqual(await page.locator('#task-color').inputValue(),oldColor);
     assert(await page.locator('#detail').isVisible());
+    // A native color picker emits intermediate input values before its final change.
+    const beforePicker=await page.locator('#task-color').inputValue();
+    let pickerSaves=0;
+    const countPickerSave=request=>{if(new URL(request.url()).pathname==='/api/plan/commands')pickerSaves++;};
+    page.on('request',countPickerSave);
+    for(const value of ['#112233','#4488aa','#cc7744']){
+      await page.locator('#task-color').evaluate((input,value)=>{input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));},value);
+      assert.equal(await page.evaluate(id=>getShift(id).segments[0].color,ownShift),beforePicker);
+    }
+    assert.equal(pickerSaves,0,'Intermediate native picker values must not start saves');
+    assert.equal(await page.locator('label[for=task-color]').evaluate(label=>label.control.id),'task-color');
+    await page.locator('#task-color').dispatchEvent('change');
+    await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+    assert.equal(pickerSaves,1);page.off('request',countPickerSave);
+    assert.equal(await page.locator('#task-color').inputValue(),'#cc7744');
+    assert.equal(await page.evaluate(id=>getShift(id).segments[0].color,ownShift),'#cc7744');
+    assert.equal(await page.evaluate(async id=>(await (await fetch('/api/bootstrap')).json()).plan.shifts.find(s=>s.id===id).segments[0].color,ownShift),'#cc7744');
+    await page.locator('[data-color="#85b9e2"]').click();await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));
+    assert.equal(await page.locator('#task-color').inputValue(),'#85b9e2');
+    assert.equal(await page.evaluate(id=>getShift(id).segments[0].color,ownShift),'#85b9e2');
     let finishColor;
     const colorGate=new Promise(resolve=>finishColor=resolve);
     const delayColor=async route=>{const response=await route.fetch();await colorGate;await route.fulfill({response});};

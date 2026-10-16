@@ -161,10 +161,12 @@ Wochenansichten ohne Miniaturpillen.
 
 Im Bearbeitungsmodus einer Schicht lassen sich Aufgaben an **beiden Enden**
 ziehen, auch wenn sie die ganze Schicht ausfüllen. Die kleinste Dauer beträgt
-15 Minuten, Aufgaben bleiben innerhalb der Schicht. An gemeinsamen Grenzen
-bleiben die Zeiten der Nachbaraufgaben unverändert; beim Zurückziehen entsteht
-wieder eine Lücke. Neue flexible Aufgaben erhalten einmalig eine eigene zufällige
-Farbe. Farbwahl und Verbindlichkeit lassen den Aufgabendialog geöffnet.
+15 Minuten, Aufgaben bleiben innerhalb der Schicht. Beim Verlängern kann die
+Nachbaraufgabe bis auf 15 Minuten verkürzt werden. Beim Zurückziehen bleibt
+ihr Rand stehen und es entsteht eine Lücke, auch innerhalb derselben Ziehbewegung.
+Verbindliche Nachbaraufgaben bleiben unverändert. Neue flexible Aufgaben erhalten einmalig eine eigene zufällige
+Farbe. Die eigene Farbe wird nach Abschluss der Farbauswahl gespeichert;
+Zwischenwerte überschreiben die Auswahl nicht. Farbwahl und Verbindlichkeit lassen den Aufgabendialog geöffnet.
 Doppelklick öffnet weiterhin
 die genaue Zeiteingabe; **Übernehmen** speichert und schließt den Editor.
 Ungültige Zeiten lassen ihn mit einem Hinweis offen.

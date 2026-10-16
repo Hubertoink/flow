@@ -135,10 +135,10 @@ const taskRange=(s,t)=>`${fmtTime(s.start+t.offset)}–${fmtTime(s.start+t.offse
 function randomTaskColor(current){let color;do{const bytes=new Uint8Array(3);crypto.getRandomValues(bytes);color='#'+[...bytes].map(n=>(100+Math.floor(n*120/256)).toString(16).padStart(2,'0')).join('');}while(color===current);return color;}
 function newTaskColor(){const used=new Set([...data.shifts.flatMap(s=>s.segments),...(data.activities||[])].map(t=>taskColor(t).toLowerCase()));let color;do{color=randomTaskColor(task('flex').color);}while(used.has(color));return color;}
 const colorDice=()=>`<button type="button" class="random-color icon-button" aria-label="Zufällige Farbe" title="Zufällige Farbe">${icon('dice')}</button>`;
-function paletteField(value){const current=String(value).toLowerCase();return `<fieldset class="task-colors palette-field"><legend>Farbe</legend><div class="color-swatches">${taskPalette.map((color,i)=>`<button type="button" class="color-swatch" data-color="${color}" style="--swatch:${color}" aria-label="Farbe ${i+1}: ${color}" aria-pressed="${current===color}"></button>`).join('')}</div><label class="custom-task-color"><span>Eigene Farbe</span>${colorDice()}<input name="color" type="color" value="${esc(value)}"></label></fieldset>`;}
+function paletteField(value){const current=String(value).toLowerCase();return `<fieldset class="task-colors palette-field"><legend>Farbe</legend><div class="color-swatches">${taskPalette.map((color,i)=>`<button type="button" class="color-swatch" data-color="${color}" style="--swatch:${color}" aria-label="Farbe ${i+1}: ${color}" aria-pressed="${current===color}"></button>`).join('')}</div><div class="custom-task-color"><label for="palette-color">Eigene Farbe</label>${colorDice()}<input id="palette-color" name="color" type="color" value="${esc(value)}"></div></fieldset>`;}
 function wirePalette(form){const input=form.querySelector('input[name="color"]'),sync=()=>form.querySelectorAll('.color-swatch').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===input.value.toLowerCase())));form.querySelectorAll('.color-swatch').forEach(b=>b.onclick=()=>{input.value=b.dataset.color;sync();});form.querySelector('.random-color').onclick=()=>{input.value=randomTaskColor(input.value);sync();};input.oninput=sync;}
 const freeColor=used=>{const taken=new Set(used.map(color=>String(color).toLowerCase()));return taskPalette.find(color=>!taken.has(color))||taskPalette[0];};
-function colorPicker(t){return `<fieldset class="task-colors"><legend>Farbe</legend><div class="color-swatches">${taskPalette.map((color,i)=>`<button type="button" class="color-swatch" data-color="${color}" style="--swatch:${color}" aria-label="Farbe ${i+1}: ${color}" aria-pressed="${taskColor(t).toLowerCase()===color}"></button>`).join('')}</div><label class="custom-task-color"><span>Eigene Farbe</span>${colorDice()}<input id="task-color" type="color" value="${taskColor(t)}"></label></fieldset>`;}
+function colorPicker(t){return `<fieldset class="task-colors"><legend>Farbe</legend><div class="color-swatches">${taskPalette.map((color,i)=>`<button type="button" class="color-swatch" data-color="${color}" style="--swatch:${color}" aria-label="Farbe ${i+1}: ${color}" aria-pressed="${taskColor(t).toLowerCase()===color}"></button>`).join('')}</div><div class="custom-task-color"><label for="task-color">Eigene Farbe</label>${colorDice()}<input id="task-color" type="color" value="${taskColor(t)}"></div></fieldset>`;}
 function persist(){syncActivities();compactShifts();data.taskTypes=tasks;if(window.flowTeam)return window.flowTeam.save();try{localStorage.setItem('flow-plan-v1',JSON.stringify(data));}catch{toast('Speichern fehlgeschlagen. Bitte den Plan über das Menü exportieren.');}}
 const toastElement=$('#toast'),toastDialogs=[];
 function syncToastLayer(){
@@ -597,11 +597,20 @@ function removeTask(s,t){
   s.segments=s.segments.filter(x=>x!==t);
 }
 function resizeTask(s,t,original,edge,delta){
-  s.segments.forEach(x=>Object.assign(x,original.find(o=>o.id===x.id)));
-  const sorted=s.segments.toSorted((a,b)=>a.offset-b.offset),index=sorted.indexOf(t);
-  // Touching edges never couple tasks: only the grabbed task changes.
-  if(edge==='task-start'){const prev=sorted[index-1],min=prev?prev.offset+prev.duration:0,change=clamp(delta,min-t.offset,t.duration-.25);t.offset+=change;t.duration-=change;}
-  else {const next=sorted[index+1],end=t.offset+t.duration,max=next?next.offset:s.length;t.duration+=clamp(delta,.25-t.duration,max-end);}
+  Object.assign(t,original.find(o=>o.id===t.id));
+  const sorted=original.toSorted((a,b)=>a.offset-b.offset).map(o=>s.segments.find(x=>x.id===o.id)),index=sorted.indexOf(t);
+  // Extend into neighbours, but never grow them back when the pointer retreats.
+  // Keep their shortened bounds throughout this gesture; cancellation restores all.
+  if(edge==='task-start'){
+    const prev=sorted[index-1],min=prev?prev.offset+(prev.locked?prev.duration:.25):0,change=clamp(delta,min-t.offset,t.duration-.25);
+    t.offset+=change;t.duration-=change;
+    if(prev&&t.offset<prev.offset+prev.duration)prev.duration=t.offset-prev.offset;
+  }else{
+    const next=sorted[index+1],end=t.offset+t.duration,max=next?next.offset+(next.locked?0:next.duration-.25):s.length;
+    t.duration+=clamp(delta,.25-t.duration,max-end);
+    const newEnd=t.offset+t.duration;
+    if(next&&newEnd>next.offset){next.duration-=newEnd-next.offset;next.offset=newEnd;}
+  }
 }
 function moveTask(s,t,original,wanted){
   // Reset to the gesture snapshot: repeated pointer events cannot accumulate drift.
@@ -647,7 +656,17 @@ function showToolkit(id,taskId){
   document.querySelectorAll('.shift.active').forEach(el=>el.classList.remove('active'));const anchor=document.querySelector(`[data-shift="${id}"]`);if(!anchor)return;anchor.classList.add('editing');
   panel.hidden=false;panel.innerHTML=`<div class="toolkit-top"><strong>${t?'Aufgabe':esc(p.name)}</strong><span>${hours(t?t.duration:s.length)}</span><button id="close-panel" class="icon-button" aria-label="Toolkit schließen">${icon('close')}</button></div>${t?`<label class="full-field"><span class="field-label">Bezeichnung</span><input id="task-label" maxlength="60" value="${esc(t.label||task(t.type).name)}"></label>`:''}<form id="toolkit-form"><div class="form-row"><label><span class="field-label">Beginn</span><input id="tool-start" type="text" inputmode="numeric" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]|24:00" placeholder="HH:MM" value="${fmtTime(s.start+(t?t.offset:0))}" required></label><label><span class="field-label">Ende</span><input id="tool-end" type="text" inputmode="numeric" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]|24:00" placeholder="HH:MM" value="${fmtTime(s.start+(t?t.offset+t.duration:s.length))}" required></label></div><p id="tool-error" class="form-error"></p><div class="toolkit-actions"><button type="button" class="delete-button" id="delete-shift" aria-label="${t?'Aufgabe':'Schicht'} löschen">${icon('trash')}</button>${t?'':'<button type="button" id="tool-add" class="secondary-button">+ Aufgabe</button>'}<button class="primary-button">Übernehmen</button></div></form>`;
   $('#close-panel').onclick=closePanel;
-  if(t?.type==='flex'){const field=$('#task-label').closest('label');field.insertAdjacentHTML('afterend',colorPicker(t));const choose=color=>{t.color=color;persist();renderTimeline();panel.querySelectorAll('[data-color]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color.toLowerCase())));$('#task-color').value=color;};panel.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>choose(b.dataset.color));$('#task-color').oninput=e=>choose(e.target.value);panel.querySelector('.random-color').onclick=()=>choose(randomTaskColor(t.color));}
+  if(t?.type==='flex'){
+    const field=$('#task-label').closest('label');field.insertAdjacentHTML('afterend',colorPicker(t));
+    const sync=color=>panel.querySelectorAll('[data-color]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.color===color.toLowerCase())));
+    const choose=color=>{t.color=color;persist();renderTimeline();sync(color);$('#task-color').value=color;};
+    panel.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>choose(b.dataset.color));
+    // Native pickers emit many intermediate inputs. Save only the committed color
+    // so an earlier server response cannot replace the user's final selection.
+    $('#task-color').oninput=e=>sync(e.target.value);
+    $('#task-color').onchange=e=>choose(e.target.value);
+    panel.querySelector('.random-color').onclick=()=>choose(randomTaskColor(t.color));
+  }
   $('#task-label')?.addEventListener('change',e=>{t.label=e.target.value.trim()||task(t.type).name;persist();renderTimeline();});
   $('#tool-add')?.addEventListener('click',()=>addTask(s,'flex',0));
   $('#delete-shift').onclick=()=>{const before=structuredClone(data.shifts);if(t)removeTask(s,t);else data.shifts=data.shifts.filter(x=>x!==s);persist();closePanel();renderTimeline();toast(t?'Aufgabe gelöscht.':'Schicht gelöscht.',()=>{data.shifts=before;persist();refresh();});};

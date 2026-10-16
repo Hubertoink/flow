@@ -257,11 +257,11 @@ kayla().querySelector('.shift-edit').click();q('[data-type="open"]').click();ass
 q('[data-type="admin"]').click();assert.equal(saved().shifts[1].segments.length,2);
 const positions=saved().shifts.map(s=>s.y);const nikoId=saved().shifts[0].id;assert.equal(parseFloat(q('[data-shift="'+nikoId+'"]').style.top),positions[0]+108);assert.deepEqual([...kayla().querySelectorAll('.segment')].map(el=>el.style.getPropertyValue('--row')),['0','1']);kayla().querySelector('.shift-edit').click();assert.equal(parseFloat(q('[data-shift="'+nikoId+'"]').style.top),positions[0]);assert.deepEqual(saved().shifts.map(s=>s.y),positions);kayla().querySelector('.shift-edit').click();
 function pointerTask(edge,dx,dy=0,cancel=false){const el=kayla(),target=el.querySelector(`[data-task="${saved().shifts[1].segments.find(t=>t.type==='admin').id}"]`),node=edge?target.querySelector(`[data-edge="${edge}"]`):target;el.parentElement.getBoundingClientRect=()=>({width:1200});el.getBoundingClientRect=()=>({left:0,right:1200,top:0,bottom:44});el.querySelector('.task-track').getBoundingClientRect=()=>({left:0,right:1200,top:0,bottom:80});el.onpointerdown({button:0,currentTarget:el,target:node,clientX:300,clientY:25,pointerId:1});d.dispatchEvent(new w.MouseEvent('pointermove',{clientX:300+dx,clientY:25+dy,bubbles:true,cancelable:true}));d.dispatchEvent(new w.Event(cancel?'pointercancel':'pointerup'));}
-pointerTask('task-end',75);let s=saved().shifts[1];assert.equal(s.segments.find(t=>t.type==='admin').duration,1);assert.equal(s.segments.find(t=>t.type==='open').duration,7);assert.equal(s.length,8);
+pointerTask('task-end',75);let s=saved().shifts[1];assert.equal(s.segments.find(t=>t.type==='admin').duration,2);assert.equal(s.segments.find(t=>t.type==='open').duration,6);assert.equal(s.length,8);
 const before=JSON.stringify(s);pointerTask('task-end',100,0,true);assert.equal(JSON.stringify(saved().shifts[1]),before);
 pointerTask(null,0,120);assert.equal(saved().shifts[1].segments.length,1);assert.deepEqual(saved().shifts[1].segments,JSON.parse(before).segments.filter(t=>t.type!=='admin'));q('#toast button').click();assert.equal(saved().shifts[1].segments.length,2);
 await new Promise(r=>setTimeout(r,1));if(kayla().querySelector('.shift-edit').getAttribute('aria-pressed')!=='true')kayla().querySelector('.shift-edit').click();q('[data-type="flex"]').click();q('#task-label').value='Werkstatt';q('#task-label').dispatchEvent(new w.Event('change'));assert.ok(saved().shifts[1].segments.some(t=>t.label==='Werkstatt'));
-assert.equal(all('.color-swatch').length,20);q('[data-color="#85b9e2"]').click();assert.equal(saved().shifts[1].segments.find(t=>t.label==='Werkstatt').color,'#85b9e2');q('#task-color').value='#112233';q('#task-color').dispatchEvent(new w.Event('input'));assert.equal(saved().shifts[1].segments.find(t=>t.label==='Werkstatt').color,'#112233');const custom=kayla().querySelector(`[data-task="${saved().shifts[1].segments.find(t=>t.label==='Werkstatt').id}"]`);assert.equal(custom.style.getPropertyValue('--task-ink'),'#ffffff');assert.match(custom.querySelector('.task-time').textContent,/\d{2}:\d{2}–\d{2}:\d{2}/);
+assert.equal(all('.color-swatch').length,20);q('[data-color="#85b9e2"]').click();assert.equal(saved().shifts[1].segments.find(t=>t.label==='Werkstatt').color,'#85b9e2');q('#task-color').value='#112233';q('#task-color').dispatchEvent(new w.Event('input'));assert.equal(saved().shifts[1].segments.find(t=>t.label==='Werkstatt').color,'#85b9e2');q('#task-color').dispatchEvent(new w.Event('change'));assert.equal(saved().shifts[1].segments.find(t=>t.label==='Werkstatt').color,'#112233');assert.equal(q('label[for=task-color]').control,q('#task-color'));assert.equal(q('.random-color').closest('label'),null);const custom=kayla().querySelector(`[data-task="${saved().shifts[1].segments.find(t=>t.label==='Werkstatt').id}"]`);assert.equal(custom.style.getPropertyValue('--task-ink'),'#ffffff');assert.match(custom.querySelector('.task-time').textContent,/\d{2}:\d{2}–\d{2}:\d{2}/);
 q('#settings-button').click();q('#new-preset').click();q('#preset-form [name=name]').value='Sport';submit('#preset-form');assert.ok(all('.legend-item').some(e=>e.textContent==='Sport'));
 q('[data-edit-person="kayla"]').click();assert.equal(all('#person-form .color-swatch').length,20);q('#person-form [data-color="#85b9e2"]').click();assert.equal(q('#person-form [name=color]').value,'#85b9e2');q('[name=until]').value=saved().shifts[1].date;q('[name=weeklyHours]').value='32';submit('#person-form');assert.equal(saved().people.find(p=>p.id==='kayla').weeklyHours,32);assert.equal(saved().people.find(p=>p.id==='kayla').color,'#85b9e2');q('#modal-close').click();assert.equal(all('.token').length,4);q('#next').click();assert.equal(all('.token').length,3);assert.equal(saved().shifts.length,2);
 q('#settings-button').click();q('#new-person').click();q('[name=name]').value='Mira';q('[name=from]').value='2030-01-01';q('[name=until]').value='2029-01-01';submit('#person-form');assert.match(q('#person-error').textContent,/Zeitraum/);assert.equal(saved().people.length,4);
@@ -320,9 +320,23 @@ const boundaryFixture=structuredClone(snapshot);
   const times=()=>JSON.parse(win.localStorage.getItem('flow-plan-v1')).shifts[0].segments.map(t=>[t.offset,t.duration]);
   resize('first','task-end',1);assert.deepEqual(times(),[[2,4],[6,3]]);
   resize('first','task-end',-.5);assert.deepEqual(times(),[[2,3.5],[6,3]]);
-  resize('first','task-end',5);assert.deepEqual(times(),[[2,4],[6,3]]);
-  resize('second','task-start',.5);assert.deepEqual(times(),[[2,4],[6.5,2.5]]);
-  resize('second','task-start',-5);assert.deepEqual(times(),[[2,4],[6,3]]);
+  resize('first','task-end',1.5);assert.deepEqual(times(),[[2,5],[7,2]]);
+  resize('first','task-end',-1.5);assert.deepEqual(times(),[[2,3.5],[7,2]]);
+  resize('second','task-start',-2);assert.deepEqual(times(),[[2,3],[5,4]]);
+  resize('second','task-start',1);assert.deepEqual(times(),[[2,3],[6,3]]);
+  // A neighbour stays shortened even when retreating in the same pointer gesture.
+  run('window.resizeSnapshot=structuredClone(data.shifts[0].segments)');
+  for(const [delta,expected] of [[2,[[2,5],[7,2]]],[.5,[[2,3.5],[7,2]]],[20,[[2,6.75],[8.75,.25]]]]){
+    run(`{const s=data.shifts[0];resizeTask(s,s.segments[0],window.resizeSnapshot,'task-end',${delta});persist();}`);assert.deepEqual(times(),expected);
+  }
+  run('data.shifts[0].segments=structuredClone(window.resizeSnapshot);window.resizeSnapshot=structuredClone(data.shifts[0].segments)');
+  for(const [delta,expected] of [[-2,[[2,2],[4,5]]],[-.5,[[2,2],[5.5,3.5]]],[-20,[[2,.25],[2.25,6.75]]]]){
+    run(`{const s=data.shifts[0];resizeTask(s,s.segments[1],window.resizeSnapshot,'task-start',${delta});persist();}`);assert.deepEqual(times(),expected);
+  }
+  run('data.shifts[0].segments=structuredClone(window.resizeSnapshot);data.shifts[0].segments[1].locked=true');
+  resize('first','task-end',20);assert.deepEqual(times(),[[2,4],[6,3]]);
+  run('data.shifts[0].segments[0].locked=true;data.shifts[0].segments[1].locked=false');
+  resize('second','task-start',-20);assert.deepEqual(times(),[[2,4],[6,3]]);
   run("addTask(data.shifts[0],'flex',0)");const color=run('data.shifts[0].segments.at(-1).color');assert.match(color,/^#[0-9a-f]{6}$/);
   run("addTask(data.shifts[0],'flex',1)");assert.notEqual(run('data.shifts[0].segments.at(-1).color'),color);
   const activityColor=run("createActivity('flex',dateKey(addDays(week,1)),10).color");assert.notEqual(activityColor,color);
