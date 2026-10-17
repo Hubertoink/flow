@@ -19,6 +19,21 @@ Docker/mittwald und Sicherungen: [Teamversion betreiben](docs/TEAM.md).
 
 ## Oberfläche
 
+Links neben **Heute** öffnet der Filterbutton eine Auswahl der Mitarbeitenden.
+Eine oder mehrere Personen lassen sich im Dock und Wochenplan anzeigen;
+**Alle** setzt den Filter zurück. Die Auswahl bleibt je Konto in diesem Browser
+bestehen und verändert keine Planungsdaten. Gemeinsame unbesetzte Tagesaufgaben
+bleiben sichtbar; Planexporte und Tages-/Wochenkopien bleiben vollständig.
+
+Unter **Einstellungen → Mitarbeitende → Person bearbeiten → Löschen** lässt
+sich ein Profil nach ausdrücklicher Bestätigung mit sämtlichen Schichten und
+Projektzuordnungen entfernen. In der Teamversion ist dies Admins vorbehalten.
+Ein verbundenes Konto bleibt erhalten und wird vom Profil getrennt; offene
+Einladungen für das Profil werden widerrufen. Unter **Team & Zugänge → Rechte
+& Konto → Konto löschen** können Admins getrennt davon einen Zugang samt
+Sitzungen entfernen. Profil und Plan bleiben dabei bestehen. Das eigene Konto
+und der letzte aktive Admin sind geschützt.
+
 Beim Neuladen bleibt die zuletzt geöffnete Woche im selben Browser-Tab erhalten.
 Die Auswahl ist je angemeldetem Konto getrennt. **Heute** springt weiterhin zur
 aktuellen Woche; neue Tabs starten mit der aktuellen Woche.

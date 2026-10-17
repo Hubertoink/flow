@@ -914,3 +914,27 @@ console.log('PASS: canvas interactions, boundary resizing, apply/validation, the
  run('clearDrop()');assert.equal(q('.project-plan-preview'),null);assert.equal(aw.document.body.classList.contains('planning-project-phase'),false);
  aw.close();
 }
+
+// Filtering changes only the view and keeps full planning data and copies intact.
+{
+  const dom=boot(),w=dom.window,d=w.document,run=code=>w.runCanvasCode(code),q=s=>d.querySelector(s);
+  run(`data.shifts=[{id:'filter-a',person:data.people[0].id,date:dateKey(week),start:10,length:8,y:32,segments:[]},{id:'filter-b',person:data.people[1].id,date:dateKey(week),start:10,length:8,y:88,segments:[]}];persist();refresh()`);
+  const original=run('JSON.stringify(data)'),ids=run('data.people.map(p=>p.id)');
+  q('#people-filter-button').click();assert.equal(q('#people-filter').hidden,false);
+  q('#people-filter-none').click();assert.equal(d.querySelectorAll('.shift').length,0);assert.equal(d.querySelectorAll('.token').length,0);
+  const box=[...d.querySelectorAll('#people-filter input')].find(b=>b.value===ids[1]);box.checked=true;box.dispatchEvent(new w.Event('change'));
+  assert.equal(d.querySelectorAll('.shift').length,1);assert.equal(q('.shift').dataset.shift,'filter-b');assert.equal(q('.shift').style.top,'32px');
+  assert.equal(d.querySelectorAll('.token').length,1);assert.equal(run('JSON.stringify(data)'),original);
+  w.dispatchEvent(new w.Event('beforeprint'));assert.equal(d.querySelectorAll('.shift').length,2);
+  w.dispatchEvent(new w.Event('afterprint'));assert.equal(d.querySelectorAll('.shift').length,1);
+  run('copyDay(dateKey(week))');assert.equal(run('copiedDay.shifts.length'),2);
+  assert.equal(run(`yAt(document.querySelector('.day-cell'),51)`),87);
+  const key=run('PEOPLE_FILTER_KEY'),value=w.localStorage.getItem(key),reload=boot(JSON.parse(original),w=>w.localStorage.setItem(key,value));
+  assert.equal(reload.window.document.querySelectorAll('.token').length,1);reload.window.close();
+  q('#people-filter-button').click();q('#people-filter').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(q('#people-filter').hidden,true);assert.equal(d.activeElement,q('#people-filter-button'));
+  q('#people-filter-button').click();q('#people-filter-all').click();assert.equal(d.querySelectorAll('.shift').length,2);assert.equal(run('peopleFilter'),null);
+  // Cancel leaves the profile intact; confirmation removes all its shifts and assignments.
+  run('openPerson(data.people[0])');q('#delete-person').click();q('#cancel-delete-person').click();assert.equal(run('data.people.length'),ids.length);
+  q('#delete-person').click();q('#confirm-delete-person').click();assert.equal(run('data.people.length'),ids.length-1);assert.equal(run('data.shifts.length'),1);
+  assert.equal(run('data.shifts[0].id'),'filter-b');dom.window.close();
+}

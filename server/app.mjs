@@ -9,7 +9,7 @@ import {id,date,parse,fail,FlowError,entitySchemas,mondayKey,equal} from './mode
 import {permissionsSchema,defaultPermissions,visiblePlan,canViewDate,canViewPerson} from './policy.mjs';
 import {transaction,workspace,loadPlan,getPeriods,getMember,audit,bump,writeChanges} from './database.mjs';
 import {passwordHash,provisionUser} from './auth.mjs';
-import {applyCommands,undoCommand} from './planning.mjs';
+import {applyCommands,undoCommand,deletePerson} from './planning.mjs';
 import packageInfo from '../package.json' with {type:'json'};
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
@@ -112,6 +112,30 @@ export function createApp({pool,auth,mail,config}){
   }));
   app.post('/api/team/:userId/revoke-sessions',admin,route(async(req,res)=>{
     await transaction(pool,async db=>{const actor=await getMember(db,req.userId);if(actor.role!=='admin')fail(403,'Adminrechte erforderlich.');const target=parse(id,req.params.userId);await db.query('DELETE FROM session WHERE "userId"=$1',[target]);await audit(db,actor,'sessions.revoke',{detail:{userId:target}});});res.json({message:'Alle Sitzungen dieses Kontos wurden beendet.'});
+  }));
+  app.delete('/api/team/:userId',admin,route(async(req,res)=>{
+    const target=parse(id,req.params.userId);
+    await transaction(pool,async db=>{
+      const actor=await getMember(db,req.userId);if(actor.role!=='admin')fail(403,'Adminrechte erforderlich.');
+      const old=(await db.query('SELECT m.*,u.name,u.email FROM flow_members m JOIN "user" u ON u.id=m.user_id WHERE m.user_id=$1',[target])).rows[0];
+      if(!old)fail(404,'Dieses Konto existiert nicht.');
+      if(old.role==='admin'&&old.active&&(await db.query("SELECT 1 FROM flow_members WHERE role='admin' AND active=true AND user_id<>$1",[target])).rowCount===0)fail(409,'Mindestens ein aktiver Admin muss erhalten bleiben.');
+      if(target===actor.userId)fail(409,'Das eigene Konto kann nicht gelöscht werden. Bitte einen anderen Admin darum.');
+      // Preserve planning history, but remove credentials and every usable access token.
+      await db.query('DELETE FROM flow_invitations WHERE invited_by=$1 OR email=$2',[target,old.email]);
+      await db.query('UPDATE flow_periods SET updated_by=NULL WHERE updated_by=$1',[target]);
+      await db.query('UPDATE flow_audit SET actor_id=NULL WHERE actor_id=$1',[target]);
+      await db.query('DELETE FROM verification WHERE value=$1',[target]);
+      await db.query('DELETE FROM session WHERE "userId"=$1',[target]);
+      await db.query('DELETE FROM account WHERE "userId"=$1',[target]);
+      await db.query('DELETE FROM "twoFactor" WHERE "userId"=$1',[target]);
+      await db.query('DELETE FROM "user" WHERE id=$1',[target]);
+      const revision=await bump(db);await audit(db,actor,'member.delete',{revision,detail:{userId:target,name:old.name,personId:old.person_id}});
+    });res.json({message:'Konto gelöscht. Mitarbeitendenprofil und Planung bleiben erhalten.'});
+  }));
+  app.delete('/api/people/:id',admin,route(async(req,res)=>{
+    const personId=parse(id,req.params.id),input=parse(z.object({expectedRevision:z.number().int().nonnegative()}).strict(),req.body);
+    res.json(await transaction(pool,async db=>{await deletePerson(db,req.userId,personId,input.expectedRevision);return snapshot(db,req.userId);}));
   }));
   app.post('/api/invitations',admin,route(async(req,res)=>{
     const input=parse(invitationSchema,req.body),token=randomBytes(32).toString('hex'),invitationId=randomUUID(),url=config.url+'/#invite='+token;

@@ -173,3 +173,26 @@
 .detail-panel,.dropdown{max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain}
 .dropdown{position:fixed;right:auto;bottom:auto}
 .canvas-export-week{margin-top:24px}.canvas-export-week>.canvas-export-title{padding-bottom:12px}.canvas-export-week>.canvas-export-title strong{font-size:16px}.canvas-export .export-outside-month{opacity:.3}.canvas-export .export-outside-month .hours{visibility:hidden}
+/* Personal view filter; never part of the shared planning data. */
+.people-filter{position:fixed;z-index:60;width:320px;padding:18px;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--text);box-shadow:0 16px 60px var(--shadow);overflow:auto}
+.people-filter-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
+.people-filter-heading .icon-button{flex-shrink:0}
+.people-filter-actions{display:flex;gap:8px;margin:14px 0}
+.people-filter-options{display:grid;gap:4px;max-height:300px;overflow:auto}
+.people-filter-options label{display:flex;gap:10px;align-items:center;padding:10px 8px;border-radius:8px;cursor:pointer;font-size:13px}
+.people-filter-options label:hover{background:var(--hover)}
+.people-filter-options input{accent-color:var(--accent);width:17px;height:17px;flex-shrink:0}
+.people-filter-options i{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.people-filter-options span{overflow-wrap:anywhere}
+#people-filter-button{position:relative}
+#people-filter-button.filter-active{color:var(--accent);background:var(--hover)}
+.filter-count{position:absolute;right:-4px;top:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-size:10px;line-height:16px}
+.form-actions>.delete-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 14px;border-radius:9px}
+.form-actions>.delete-button svg{width:16px;height:16px}
+@media print{.people-filter{display:none!important}}
+@media screen and (max-width:640px){
+  .topbar{display:grid;grid-template-columns:auto 1fr;grid-template-rows:44px 36px;align-content:center;height:100px;gap:4px 10px}
+  .topbar .brand{grid-column:1;grid-row:1}
+  .topbar .header-actions{grid-column:2;grid-row:1;justify-self:end}
+  .topbar .week-nav{grid-column:1 / -1;grid-row:2;justify-self:center;max-width:100%}
+}

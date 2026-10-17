@@ -53,3 +53,20 @@ export async function undoCommand(db,userId,auditId,expectedRevision){
   for(const c of entry.changes){const current=c.collection==='settings'?plan.settings:plan[c.collection].find(e=>e.id===c.id)||null;if(!equal(current,c.after))fail(409,'Die betroffenen Daten wurden danach bearbeitet. Rückgängig würde diese Änderungen überschreiben.');}
   return applyCommands(db,userId,{expectedRevision,changes:entry.changes.map(c=>({...c,before:c.after,after:c.before}))},{undoId:auditId});
 }
+
+// Explicit profile deletion is separate from ordinary edits/imports and their lock checks.
+export async function deletePerson(db,userId,personId,expectedRevision){
+  const member=await getMember(db,userId);if(member.role!=='admin')fail(403,'Adminrechte erforderlich.');
+  if(Number((await workspace(db)).revision)!==expectedRevision)fail(409,'Der Plan wurde inzwischen geändert. Bitte aktualisieren und erneut bestätigen.');
+  const before=await loadPlan(db),person=before.people.find(p=>p.id===personId);if(!person)fail(404,'Diese Person existiert nicht.');
+  const after=structuredClone(before);
+  after.people=after.people.filter(p=>p.id!==personId);after.shifts=after.shifts.filter(s=>s.person!==personId);
+  for(const project of after.projects)for(const phase of project.phases)phase.people=phase.people.filter(id=>id!==personId);
+  derivedActivities(after);validatePlan(after);
+  await db.query('UPDATE flow_members SET person_id=NULL WHERE person_id=$1',[personId]);
+  await db.query('UPDATE flow_invitations SET revoked_at=now(),person_id=NULL WHERE person_id=$1 AND accepted_at IS NULL AND revoked_at IS NULL',[personId]);
+  // Delegations must not refer to a removed person, including in pending invitations.
+  for(const table of ['flow_members','flow_invitations'])await db.query(`UPDATE ${table} SET permissions=jsonb_set(permissions,'{delegates}',COALESCE((SELECT jsonb_agg(d) FROM jsonb_array_elements(permissions->'delegates') d WHERE d->>'personId'<>$1),'[]'::jsonb)) WHERE permissions->'delegates' @> $2::jsonb`,[personId,JSON.stringify([{personId}])]);
+  const changes=diffPlan(before,after);await writeChanges(db,changes);const revision=await bump(db);
+  await audit(db,member,'person.delete',{revision,changes,detail:{personId,name:person.name,shifts:before.shifts.length-after.shifts.length}});
+}

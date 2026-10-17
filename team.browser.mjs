@@ -213,6 +213,30 @@ export async function runBrowserTests({url,email,password}){
     await marcPage.locator('#week-number').click();await marcPage.locator('#next').click();await marcPage.locator('#copy-badge').click();await marcPage.locator('.day-cell').first().click({position:{x:30,y:120}});await marcPage.waitForFunction(()=>data.shifts.filter(s=>s.date>=dateKey(week)&&s.date<=dateKey(addDays(week,6))).some(s=>s.person==='marc-test')&&!document.body.classList.contains('team-saving'));
     const copied=await marcPage.evaluate(()=>data.shifts.filter(s=>s.date>=dateKey(week)&&s.date<=dateKey(addDays(week,6))));assert(copied.some(s=>s.person==='bufdi-test'));assert(!copied.some(s=>s.person==='lee-test'));assert(copied.filter(s=>s.person==='marc-test'||s.person==='bufdi-test').every(s=>s.lock==='open'));
     assert.deepEqual(errors,[]);
+    // Personal employee selection is persistent, keyboard accessible and fits mobile.
+    await page.reload();await page.locator('#team-user-toggle').waitFor();
+    const beforeFilter=await page.evaluate(()=>JSON.stringify(data));
+    await page.locator('#people-filter-button').click();await page.locator('#people-filter-none').click();
+    await page.locator('#people-filter input[value="marc-test"]').check();
+    assert(await page.locator('.token').count()===1);assert.equal(await page.locator('.token').getAttribute('data-person'),'marc-test');
+    assert.equal(await page.evaluate(()=>JSON.stringify(data)),beforeFilter);
+    for(const width of [1366,390]){
+      await page.setViewportSize({width,height:844});await page.screenshot({path:'.flow-local/people-filter-'+width+'.png',fullPage:true});
+      const nav=await page.locator('.week-nav').boundingBox(),actions=await page.locator('.header-actions').boundingBox();if(width===390)assert(nav.y>=actions.y+actions.height,'Mobile navigation must not overlap the filter or Today');
+      const rect=await page.locator('#people-filter').boundingBox();assert(rect.x>=0&&rect.x+rect.width<=width&&rect.y+rect.height<=844);
+    }
+    await page.keyboard.press('Escape');assert(await page.locator('#people-filter').isHidden());assert(await page.locator('#people-filter-button').evaluate(el=>el===document.activeElement));
+    await page.reload();await page.locator('#team-user-toggle').waitFor();assert.equal(await page.locator('.token').count(),1);
+    await page.locator('#people-filter-button').click();await page.locator('#people-filter-all').click();await page.keyboard.press('Escape');await page.setViewportSize({width:1280,height:720});
+    // Both destructive dialogs require an explicit confirmation.
+    await page.locator('#settings-button').click();await page.locator('#settings-tab-people').click();await page.locator('#new-person').click();await page.locator('#person-form input[name=name]').fill('Löschtest');await page.locator('#person-form .primary-button').click();
+    await page.waitForFunction(()=>!document.body.classList.contains('team-saving'));await page.locator('[data-edit-person]').filter({hasText:'Löschtest'}).click();await page.locator('#delete-person').click();
+    await page.screenshot({path:'.flow-local/delete-person.png',fullPage:true});await page.locator('#cancel-delete-person').click();await page.locator('#delete-person').click();await page.locator('#confirm-delete-person').click();
+    await page.waitForFunction(()=>!data.people.some(p=>p.name==='Löschtest')&&!document.body.classList.contains('team-saving'));await page.locator('#modal-close').click();
+    await page.locator('#team-user-toggle').click();await page.locator('#team-management').click();await page.locator('tr').filter({hasText:'browser@example.org'}).getByRole('button',{name:'Rechte & Konto'}).click();await page.locator('#member-delete').click();
+    await page.screenshot({path:'.flow-local/delete-account.png',fullPage:true});await page.locator('#cancel-member-delete').click();await page.locator('#member-delete').click();await page.locator('#confirm-member-delete').click();
+    await page.locator('#team-invite').waitFor();assert.equal(await page.evaluate(async()=>(await (await fetch('/api/team')).json()).members.some(m=>m.email==='browser@example.org')),false);
+    assert.deepEqual(errors,[]);
     console.log('PASS: Browser-Anmeldung, Schichterstellung, Zeitsperre mit freier Aufgabenplanung, Speicherung/Neuladen, Einladung, Mitarbeiterzugang, Abmeldung und schmale Ansicht.');
   }catch(error){console.error(error);if(activePage){console.error('Browserdiagnose:',JSON.stringify({errors:observedErrors,state:await activePage.evaluate(()=>({banner:document.querySelector('#team-error-banner')?.textContent,status:document.querySelector('#team-status')?.textContent,saving:document.body.className,shifts:typeof data==='undefined'?[]:data.shifts.map(s=>({id:s.id,lock:s.lock}))})).catch(()=>({}))}));await activePage.screenshot({path:'.flow-local/browser-failure.png',fullPage:true}).catch(()=>{});}throw error;}finally{await browser.close();}
 }

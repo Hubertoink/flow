@@ -57,7 +57,35 @@ function weekDayIndices(settings){
   return [0,1,2,3,4,...((settings.saturday??settings.weekend)?[5]:[]),...((settings.sunday??settings.weekend)?[6]:[])];
 }
 const dates=()=>weekDayIndices(data.settings).map(i=>addDays(week,i));
-const visiblePeople=()=>data.people.filter(p=>dates().some(d=>activeOn(p,dateKey(d))));
+const PEOPLE_FILTER_KEY=`flow-people-filter-v1:${window.flowTeam?.bootstrap?.member?.userId||'local'}`;
+let peopleFilter=null;
+try{const saved=JSON.parse(localStorage.getItem(PEOPLE_FILTER_KEY));if(Array.isArray(saved)&&saved.every(id=>typeof id==='string'))peopleFilter=saved;}catch{}
+const personVisible=id=>peopleFilter===null||peopleFilter.includes(id);
+const visiblePeople=()=>data.people.filter(p=>personVisible(p.id)&&dates().some(d=>activeOn(p,dateKey(d))));
+function updatePeopleFilter(){
+  const button=$('#people-filter-button');if(!button)return;
+  const count=data.people.filter(p=>personVisible(p.id)).length;
+  button.classList.toggle('filter-active',peopleFilter!==null);
+  button.setAttribute('aria-label',peopleFilter===null?'Mitarbeitende filtern':`Mitarbeitende filtern, ${count} ausgewählt`);
+  button.innerHTML=icon('sliders')+(peopleFilter===null?'':`<span class="filter-count">${count}</span>`);
+}
+function setPeopleFilter(ids){
+  endGesture(true);clearDrop();closePanel();editing=null;selected=null;picked=null;copyPicked=false;
+  peopleFilter=ids;try{if(ids===null)localStorage.removeItem(PEOPLE_FILTER_KEY);else localStorage.setItem(PEOPLE_FILTER_KEY,JSON.stringify(ids));}catch{}
+  refresh();
+}
+function closePeopleFilter(focus=false){const panel=$('#people-filter');panel.hidden=true;$('#people-filter-button').setAttribute('aria-expanded','false');if(focus)$('#people-filter-button').focus();}
+function openPeopleFilter(){
+  const panel=$('#people-filter');if(!panel.hidden){closePeopleFilter();return;}
+  closeMenu();closeMonthPicker();closePanel();
+  panel.innerHTML=`<div class="people-filter-heading"><strong>Mitarbeitende filtern</strong><button type="button" id="people-filter-close" class="icon-button" aria-label="Filter schließen">${icon('close')}</button></div><p class="modal-note">Eine oder mehrere Personen im Wochenplan anzeigen.</p><div class="people-filter-actions"><button type="button" id="people-filter-all" class="secondary-button">Alle</button><button type="button" id="people-filter-none" class="secondary-button">Keine</button></div><div class="people-filter-options">${data.people.toSorted((a,b)=>a.name.localeCompare(b.name,'de')).map(p=>`<label><input type="checkbox" value="${esc(p.id)}" ${personVisible(p.id)?'checked':''}><i style="background:${p.color}"></i><span>${esc(p.name)}</span></label>`).join('')||'<p class="modal-note">Keine Mitarbeitenden vorhanden.</p>'}</div><p class="modal-note">Gemeinsame unbesetzte Aufgaben bleiben sichtbar. Exporte und Kopien enthalten den vollständigen Plan.</p>`;
+  const boxes=()=>[...panel.querySelectorAll('input')];
+  panel.querySelector('#people-filter-all').onclick=()=>{setPeopleFilter(null);boxes().forEach(b=>b.checked=true);};
+  panel.querySelector('#people-filter-none').onclick=()=>{setPeopleFilter([]);boxes().forEach(b=>b.checked=false);};
+  boxes().forEach(b=>b.onchange=()=>{const ids=boxes().filter(b=>b.checked).map(b=>b.value);setPeopleFilter(ids.length===data.people.length?null:ids);});
+  panel.querySelector('#people-filter-close').onclick=()=>closePeopleFilter(true);
+  panel.hidden=false;$('#people-filter-button').setAttribute('aria-expanded','true');positionFloatingPanel(panel,$('#people-filter-button'),false,true);panel.querySelector('input,button')?.focus();
+}
 const duration=s=>s.length;
 const getShift=id=>data.shifts.find(s=>s.id===id);
 const weekdays=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
@@ -155,7 +183,7 @@ new MutationObserver(records=>{let changed=false;for(const {target,type} of reco
 function hideToast(){const el=toastElement;if(!window.document)return;el.hidePopover?.();el.hidden=true;}
 function toast(message,undo){clearTimeout(toastTimer);const el=toastElement;el.innerHTML=`<span>${esc(message)}</span>${undo?'<button>Rückgängig</button>':''}`;el.hidden=false;syncToastLayer();if(undo){if(window.flowTeam)window.flowTeam.attachUndo(el.querySelector('button'));else el.querySelector('button').onclick=()=>{undo();hideToast();};}toastTimer=setTimeout(hideToast,6000);}
 function isoWeek(d){const v=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));v.setUTCDate(v.getUTCDate()+3);return Math.ceil(((v-Date.UTC(v.getUTCFullYear(),0,1))/86400000+1)/7);}
-function refresh(){renderDock();renderTimeline();window.renderProjects?.();}
+function refresh(){updatePeopleFilter();renderDock();renderTimeline();window.renderProjects?.();}
 function renderDock(){
   const people=visiblePeople(); $('.dock').setAttribute('aria-label',`Mitarbeitenden-Dock, ${people.length} im Einsatz`);
   document.querySelectorAll('.token-hours').forEach(label=>{const state=dockHourAnimations.get(label);if(state?.frame)cancelAnimationFrame(state.frame);state?.fade?.cancel();});
@@ -438,7 +466,12 @@ function dayAgendaMarkup(shifts,date,model=data){
     return `<div class="day-activity ${group.people.size?'':'unassigned'}" data-activity="${group.id}" draggable="true" tabindex="0" role="listitem" aria-label="${esc(description)}" data-tooltip="${esc(description)}" style="--agenda-row:${group.row};--activity-color:${group.color};--activity-ink:${group.ink}">${group.ranges.map((range,index)=>`<span class="day-activity-range" aria-hidden="true" style="left:calc(${(range.start-DAY_START)/DAY_SPAN*100}% + 2px);width:calc(${(range.end-range.start)/DAY_SPAN*100}% - 4px)">${index===0?`<b>${esc(group.name)}</b>`:''}<time>${fmtTime(range.start)}–${fmtTime(range.end)}</time><small>${group.people.size?group.people.size+' Pers.':'Noch unbesetzt'}</small><i class="activity-edge" data-edge="start"></i><i class="activity-edge" data-edge="end"></i></span><span class="activity-outside" aria-hidden="true" hidden><b>${esc(group.name)}</b><time>${fmtTime(range.start)}–${fmtTime(range.end)}</time></span>`).join('')}</div>`;
   }).join('')}</section>`;
 }
-function displayY(s){const open=getShift(editing);return s.y+(open&&open.id!==s.id&&open.date===s.date&&s.y>=open.y?editExtra(open):0);}
+function filteredAgendaModel(){
+  if(peopleFilter===null)return data;
+  const assigned=new Set(data.shifts.flatMap(s=>s.segments.map(t=>t.activityId))),visible=new Set(data.shifts.filter(s=>personVisible(s.person)).flatMap(s=>s.segments.map(t=>t.activityId)));
+  return {...data,activities:data.activities.filter(a=>!assigned.has(a.id)||visible.has(a.id))};
+}
+function displayY(s){const open=getShift(editing);return s.y-(peopleFilter===null?0:data.shifts.filter(other=>other.date===s.date&&other.y<s.y&&!personVisible(other.person)).length*56)+(open&&open.id!==s.id&&open.date===s.date&&s.y>=open.y?editExtra(open):0);}
 function animateLayout(change){const before=new Map([...document.querySelectorAll('.shift,.segment')].map(el=>[el.dataset.task||el.dataset.shift,el.getBoundingClientRect()]));change();if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;const after=new Map([...document.querySelectorAll('.shift,.segment')].map(el=>[el.dataset.task||el.dataset.shift,el.getBoundingClientRect()]));document.querySelectorAll('.shift,.segment').forEach(el=>{const old=before.get(el.dataset.task||el.dataset.shift);if(!old||!el.animate)return;const now=after.get(el.dataset.task||el.dataset.shift),parent=el.classList.contains('segment')?el.closest('.shift'):null,previousParent=parent&&before.get(parent.dataset.shift),currentParent=parent&&after.get(parent.dataset.shift);const dx=(old.left-now.left-(previousParent?previousParent.left-currentParent.left:0))/zoom,dy=(old.top-now.top-(previousParent?previousParent.top-currentParent.top:0))/zoom;el.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'translate(0,0)'}],{duration:260,easing:'cubic-bezier(.22,.68,.18,1)'});});}
 function shiftMarkup(s){
   const p=data.people.find(p=>p.id===s.person);
@@ -457,9 +490,9 @@ function renderTimeline(){
   $('#week-number').textContent='KW '+isoWeek(week);
   $('#week-number').setAttribute('aria-label',`KW ${isoWeek(week)} kopieren, ${dayLabel(dateKey(week),{day:'numeric',month:'long',year:'numeric'})} bis ${dayLabel(dateKey(last),{day:'numeric',month:'long',year:'numeric'})}`);
   const grid=$('#timeline'); grid.style.setProperty('--days',ds.length);
-  grid.innerHTML=ds.map(d=>{const key=dateKey(d),shifts=data.shifts.filter(s=>s.date===key&&activeOn(data.people.find(p=>p.id===s.person),key));return `<section class="day-column" data-date="${key}"><button class="day-head ${key===todayKey()?'current':''}" data-date="${key}" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})} öffnen"><span class="day-title"><span class="day-name">${d.toLocaleDateString('de-DE',{weekday:'long'})}</span><span class="day-short">${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><span class="day-date">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span></span><span class="hours">${[8,10,12,14,16,18,20,22,24].map(h=>`<span>${String(h).padStart(2,'0')}</span>`).join('')}</span></button>${shifts.length||data.activities.some(a=>a.date===key)?`<div class="day-copy-anchor"><button class="day-copy" data-copy-day="${key}" data-tooltip="Tag kopieren" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})} kopieren">${icon('copy')}</button></div>`:''}${dayAgendaMarkup(shifts,d)}<div class="day-cell" data-date="${key}" tabindex="0" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})}, Schicht platzieren" style="min-height:${Math.max(0,...shifts.map(s=>displayY(s)+editExtra(s)+100))}px">${shifts.map(shiftMarkup).join('')}</div></section>`;}).join('');
+  grid.innerHTML=ds.map(d=>{const key=dateKey(d),shifts=data.shifts.filter(s=>s.date===key&&personVisible(s.person)&&activeOn(data.people.find(p=>p.id===s.person),key));return `<section class="day-column" data-date="${key}"><button class="day-head ${key===todayKey()?'current':''}" data-date="${key}" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})} öffnen"><span class="day-title"><span class="day-name">${d.toLocaleDateString('de-DE',{weekday:'long'})}</span><span class="day-short">${d.toLocaleDateString('de-DE',{weekday:'short'})}</span><span class="day-date">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span></span><span class="hours">${[8,10,12,14,16,18,20,22,24].map(h=>`<span>${String(h).padStart(2,'0')}</span>`).join('')}</span></button>${shifts.length||data.activities.some(a=>a.date===key)?`<div class="day-copy-anchor"><button class="day-copy" data-copy-day="${key}" data-tooltip="Tag kopieren" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})} kopieren">${icon('copy')}</button></div>`:''}${dayAgendaMarkup(shifts,d,filteredAgendaModel())}<div class="day-cell" data-date="${key}" tabindex="0" aria-label="${d.toLocaleDateString('de-DE',{weekday:'long'})}, Schicht platzieren" style="min-height:${Math.max(0,...shifts.map(s=>displayY(s)+editExtra(s)+100))}px">${shifts.map(shiftMarkup).join('')}</div></section>`;}).join('');
   grid.querySelectorAll('.day-cell').forEach(cell=>{
-    const shifts=data.shifts.filter(s=>s.date===cell.dataset.date&&activeOn(data.people.find(p=>p.id===s.person),s.date)).toSorted((a,b)=>a.y-b.y||a.start-b.start);
+    const shifts=data.shifts.filter(s=>s.date===cell.dataset.date&&personVisible(s.person)&&activeOn(data.people.find(p=>p.id===s.person),s.date)).toSorted((a,b)=>a.y-b.y||a.start-b.start);
     cell.insertAdjacentHTML('beforeend',`<div class="day-miniatures" hidden>${shifts.map(miniShiftMarkup).join('')}</div>`);
     cell.querySelectorAll('.day-mini-shift').forEach(button=>button.onclick=e=>{
       e.stopPropagation();if(suppressClick)return;expandDay(cell.dataset.date);cell.parentElement.querySelector('.day-head').focus({preventScroll:true});
@@ -536,7 +569,7 @@ function updateFocus(){const ds=dates(),grid=$('#timeline'),columns=[...grid.que
 });}
 function expandDay(date){closePanel();focusDate=date;updateFocus();updateDockHours();setTimeout(updateTaskLabels,300);}
 function queueExpand(date){updateDockHours(date);if(hoverDay===date)return;clearTimeout(expandTimer);hoverDay=null;if(focusDate===date)return;hoverDay=date;expandTimer=setTimeout(()=>{expandDay(date);hoverDay=null;},220);}
-function yAt(cell,y){let local=(y-cell.getBoundingClientRect().top)/zoom-(gesture?.grabY??20);const open=getShift(editing);if(open&&gesture?.s.id!==open.id&&open.date===cell.dataset.date&&local>open.y+44)local=Math.max(open.y+44,local-editExtra(open));return local;}
+function yAt(cell,y){let local=(y-cell.getBoundingClientRect().top)/zoom-(gesture?.grabY??20);if(peopleFilter!==null){const visible=dayShifts(cell.dataset.date).filter(s=>personVisible(s.person)&&s.id!==gesture?.s.id);const next=visible.find(s=>local<displayY(s));return next?next.y-1:visible.length?visible.at(-1).y+1:local;}const open=getShift(editing);if(open&&gesture?.s.id!==open.id&&open.date===cell.dataset.date&&local>open.y+44)local=Math.max(open.y+44,local-editExtra(open));return local;}
 function freeY(date,wanted,ignore){
   return 32+data.shifts.filter(s=>s.id!==ignore&&s.date===date&&s.y<=wanted).length*56;
 }
@@ -784,12 +817,23 @@ function openPreset(preset){
 }
 function openPerson(person){
   const returnToSettings=settingsReturn(person?`[data-edit-person="${person.id}"]`:'#new-person'),schedule=person?.weekdayHours||[8,8,8,8,8,0,0];
-  openModal(`${modalTop(person?'Mitarbeitende bearbeiten':'Mitarbeitende hinzufügen')}<form id="person-form"><label class="full-field"><span class="field-label">Name</span><input name="name" maxlength="24" value="${esc(person?.name||'')}" required></label>${paletteField(person?.color||freeColor(data.people.map(p=>p.color)))}<label class="full-field"><span class="field-label">Sollstunden pro Woche</span><input name="weeklyHours" type="number" min="0" max="112" step="0.25" value="${person?.weeklyHours??schedule.reduce((total,value)=>total+value,0)}" required></label><fieldset class="weekday-model"><legend>Stunden pro Wochentag</legend><div class="weekday-inputs">${weekdays.map((day,index)=>`<label><span>${day.slice(0,2)}</span><input name="weekday-${index}" aria-label="Stunden am ${day}" type="number" min="0" max="16" step="0.25" value="${schedule[index]}" required></label>`).join('')}</div><p><span>Verteilt</span><output id="schedule-total"></output></p></fieldset><div class="form-row"><label><span class="field-label">Eintritt (optional)</span><input name="from" type="date" value="${person?.from||''}"></label><label><span class="field-label">Letzter Tag (optional)</span><input name="until" type="date" value="${person?.until||''}"></label></div><p id="person-error" class="form-error"></p><div class="form-actions"><button type="button" class="secondary-button" id="back-settings">Zurück</button><button class="primary-button">Speichern</button></div></form>`,returnToSettings);
+  openModal(`${modalTop(person?'Mitarbeitende bearbeiten':'Mitarbeitende hinzufügen')}<form id="person-form"><label class="full-field"><span class="field-label">Name</span><input name="name" maxlength="24" value="${esc(person?.name||'')}" required></label>${paletteField(person?.color||freeColor(data.people.map(p=>p.color)))}<label class="full-field"><span class="field-label">Sollstunden pro Woche</span><input name="weeklyHours" type="number" min="0" max="112" step="0.25" value="${person?.weeklyHours??schedule.reduce((total,value)=>total+value,0)}" required></label><fieldset class="weekday-model"><legend>Stunden pro Wochentag</legend><div class="weekday-inputs">${weekdays.map((day,index)=>`<label><span>${day.slice(0,2)}</span><input name="weekday-${index}" aria-label="Stunden am ${day}" type="number" min="0" max="16" step="0.25" value="${schedule[index]}" required></label>`).join('')}</div><p><span>Verteilt</span><output id="schedule-total"></output></p></fieldset><div class="form-row"><label><span class="field-label">Eintritt (optional)</span><input name="from" type="date" value="${person?.from||''}"></label><label><span class="field-label">Letzter Tag (optional)</span><input name="until" type="date" value="${person?.until||''}"></label></div><p id="person-error" class="form-error"></p><div class="form-actions">${person?`<button type="button" id="delete-person" class="delete-button">${icon('trash')} Löschen</button>`:''}<button type="button" class="secondary-button" id="back-settings">Zurück</button><button class="primary-button">Speichern</button></div></form>`,returnToSettings);
   const updateTotal=(sync=false)=>{const total=weekdays.reduce((sum,day,index)=>sum+Number($(`[name="weekday-${index}"]`).value),0);$('#schedule-total').textContent=hours(total);if(sync)$('[name="weeklyHours"]').value=total;};
-  weekdays.forEach((day,index)=>$(`[name="weekday-${index}"]`).oninput=()=>updateTotal(true));updateTotal();wirePalette($('#person-form'));$('#back-settings').onclick=returnToSettings;
+  weekdays.forEach((day,index)=>$(`[name="weekday-${index}"]`).oninput=()=>updateTotal(true));updateTotal();wirePalette($('#person-form'));$('#back-settings').onclick=returnToSettings;if(person)$('#delete-person').onclick=()=>confirmDeletePerson(person,returnToSettings);
   $('#person-form').onsubmit=event=>{event.preventDefault();const form=new FormData(event.target),weekdayHours=weekdays.map((day,index)=>Number(form.get(`weekday-${index}`))),values={name:String(form.get('name')).trim(),hours:weekdayHours.find(value=>value>0)||8,weekdayHours,weeklyHours:Number(form.get('weeklyHours')),color:form.get('color'),from:form.get('from'),until:form.get('until')};if(!values.name||weekdayHours.some(value=>!Number.isFinite(value)||value<0||value>16||value*4%1!==0)||!Number.isFinite(values.weeklyHours)||values.weeklyHours<0||values.weeklyHours>112||(values.from&&values.until&&values.from>values.until)){$('#person-error').textContent='Bitte Name, Stunden und Zeitraum prüfen.';return;}if(person)Object.assign(person,values);else data.people.push({id:uid(),...values});persist();refresh();returnToSettings();};
 }
 function download(content,type,name){const url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function confirmDeletePerson(person,returnToSettings){
+  const count=data.shifts.filter(s=>s.person===person.id).length;
+  openModal(`${modalTop('Mitarbeitende löschen')}<p><strong>${esc(person.name)}</strong> endgültig löschen?</p><p class="modal-note">Das Profil, alle ${count} Schichten in sämtlichen Wochen (auch fixierte) und seine Projektzuordnungen werden gelöscht. Gemeinsame Tagesaufgaben bleiben erhalten.</p>${window.flowTeam?'<p class="modal-note">Ein verbundenes Konto bleibt bestehen und wird vom Profil getrennt. Offene Einladungen für dieses Profil werden widerrufen.</p>':''}<p class="modal-note">Diese Aktion kann nicht rückgängig gemacht werden.</p><p id="person-delete-error" class="form-error" role="alert"></p><div class="form-actions"><button type="button" id="cancel-delete-person" class="secondary-button">Abbrechen</button><button type="button" id="confirm-delete-person" class="delete-button">Endgültig löschen</button></div>`,()=>openPerson(person));
+  $('#cancel-delete-person').onclick=()=>openPerson(person);
+  $('#confirm-delete-person').onclick=async event=>{
+    event.currentTarget.disabled=true;
+    if(window.flowTeam){if(!await window.flowTeam.deletePerson(person.id)){if($('#confirm-delete-person'))$('#confirm-delete-person').disabled=false;return;}}
+    else{data.people=data.people.filter(p=>p.id!==person.id);data.shifts=data.shifts.filter(s=>s.person!==person.id);for(const project of data.projects)for(const phase of project.phases)phase.people=phase.people.filter(id=>id!==person.id);persist();}
+    editing=null;selected=null;picked=null;copiedShift=null;copiedDay=null;copiedWeek=null;copiedTask=null;copyPicked=false;refresh();returnToSettings();toast('Mitarbeitendenprofil gelöscht.');
+  };
+}
 function exportCSV(){const rows=[['Name','Datum','Beginn','Ende','Aufgabe','Anwesenheit / Aufgabe (h)','Pausenanteil (h)','Ist netto (h)']];Array.from({length:7},(_,i)=>dateKey(addDays(week,i))).forEach(date=>dayActivityGroups(data.shifts.filter(s=>s.date===date),date).forEach(group=>group.ranges.forEach(range=>rows.push([[...group.people].map(id=>data.people.find(p=>p.id===id)?.name).join(', ')||'Noch unbesetzt',date,fmtTime(range.start),fmtTime(range.end),'Tagesaufgabe: '+group.name,range.end-range.start,'','']))));data.shifts.filter(s=>s.date>=dateKey(week)&&s.date<=dateKey(addDays(week,6))).forEach(s=>{const name=data.people.find(p=>p.id===s.person).name,work=shiftWork(s);rows.push([name,s.date,fmtTime(s.start),fmtTime(s.start+s.length),'Schicht',s.length,work.pause,work.net]);s.segments.toSorted((a,b)=>a.offset-b.offset).forEach(t=>rows.push([name,s.date,fmtTime(s.start+t.offset),fmtTime(s.start+t.offset+t.duration),t.label||task(t.type).name,t.duration,'','']));});download('\ufeff'+rows.map(r=>r.map(v=>'"'+String(v).replace(/^[=+\-@]/,"'$&").replaceAll('"','""')+'"').join(';')).join('\r\n'),'text/csv;charset=utf-8',`Flow-${dateKey(week)}.csv`);}
 function changeWeek(n){week=addDays(week,n);focusDate=null;picked=null;closePanel();refresh();}
 let pickerMonth;
@@ -844,6 +888,13 @@ document.addEventListener('focusin',e=>{if(!e.target.closest('#month-picker,#dat
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#month-picker').hidden){e.preventDefault();e.stopImmediatePropagation();closeMonthPicker(true);}},true);
 window.addEventListener('resize',positionMonthPicker);
 function closeMenu(){$('#menu').hidden=true;$('#more').setAttribute('aria-expanded','false');}
+let printPeopleFilter;
+window.addEventListener('beforeprint',()=>{printPeopleFilter=peopleFilter;peopleFilter=null;refresh();});
+window.addEventListener('afterprint',()=>{if(printPeopleFilter!==undefined){peopleFilter=printPeopleFilter;printPeopleFilter=undefined;refresh();}});
+$('#people-filter-button').onclick=openPeopleFilter;
+document.addEventListener('click',event=>{if(!event.target.closest('#people-filter,#people-filter-button'))closePeopleFilter();});
+document.addEventListener('focusin',event=>{if(!event.target.closest('#people-filter,#people-filter-button'))closePeopleFilter();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#people-filter').hidden){event.preventDefault();event.stopImmediatePropagation();closePeopleFilter(true);}},true);
 $('#prev').onclick=()=>changeWeek(-7);$('#next').onclick=()=>changeWeek(7);$('#today').onclick=()=>{week=monday(parseDate(todayKey()));changeWeek(0);};
 $('#settings-button').onclick=()=>openSettings();
 $('#week-number').onclick=copyWeek;
