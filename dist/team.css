@@ -15,3 +15,15 @@
 .team-saving #detail{pointer-events:auto}
 .team-plan-update{max-width:220px;min-width:0;color:#91c5ff;line-height:1.4}.team-plan-update[hidden]{display:none}.team-plan-update button{padding:4px 0;color:inherit;font:inherit;text-align:left}.team-plan-update button:hover{text-decoration:underline}.team-plan-update button:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px}:root[data-theme=light] .team-plan-update{color:#1859a1}:root[data-theme=catppuccin] .team-plan-update{color:#89b4fa}
 @media(max-width:650px){.team-plan-update{flex-basis:100%}}
+.team-member-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 24px;margin-top:8px;padding-top:20px;border-top:1px solid var(--border)}
+.team-account-actions{display:flex;flex-wrap:wrap;gap:10px}
+.team-member-footer .form-actions{margin:0;margin-left:auto}
+.team-account-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:9px 13px;border:1px solid var(--border);border-radius:9px;background:var(--hover);color:var(--text);font-family:inherit;font-size:12px;font-weight:500;line-height:18px;cursor:pointer;transition:background 140ms,border-color 140ms}
+.team-account-button svg{width:16px;height:16px;flex:none}
+.team-account-button:hover:not(:disabled){background:color-mix(in srgb,var(--text) 10%,transparent);border-color:var(--muted);filter:none}
+.team-account-button-danger{color:var(--hours-more);border-color:color-mix(in srgb,var(--hours-more) 30%,transparent);background:color-mix(in srgb,var(--hours-more) 8%,transparent)}
+.team-account-button-danger:hover:not(:disabled){border-color:color-mix(in srgb,var(--hours-more) 60%,transparent);background:color-mix(in srgb,var(--hours-more) 15%,transparent)}
+.team-account-button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.team-account-button:disabled{opacity:.5;cursor:wait}
+@media(max-width:650px){.team-member-footer{gap:20px}.team-account-actions{width:100%;flex-direction:column}.team-account-actions .team-account-button{width:100%;min-height:42px}.team-member-footer .form-actions{width:100%;justify-content:flex-end}}
+@media(prefers-reduced-motion:reduce){.team-account-button{transition:none}}
