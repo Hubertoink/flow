@@ -927,7 +927,29 @@ function renderLegend(){
 $('#more').onclick=()=>{const hidden=!$('#menu').hidden;$('#menu').hidden=hidden;$('#more').setAttribute('aria-expanded',String(!hidden));if(!hidden)positionFloatingPanel($('#menu'),$('#more'),false,true);};
 $('#menu').querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{closeMenu();({excel:()=>openExport('excel'),image:()=>openExport('image'),export:exportCSV,backup:()=>exportPlan(),import:()=>openPlanImport(),print:()=>window.print(),settings:()=>openSettings()})[b.dataset.action]();});
 document.addEventListener('click',e=>{if(!e.target.closest('.menu-wrap'))closeMenu();if(!e.target.closest('#week-info,#week-info-toggle'))closeWeekInfo();if(!e.composedPath().some(node=>node.matches?.('#detail,.shift,.legend-item,.day-agenda,#projects')))closePanel();});
-document.addEventListener('keydown',event=>{if($('#modal').open){if(event.key==='Escape'){event.preventDefault();$('#modal-close').click();}return;}if(event.key==='Escape'){endGesture(true);editing=null;copyPicked=false;closeWeekInfo();picked=null;clearDrop();closePanel();closeMenu();refresh();}});
+function isKeyboardEditingTarget(target){return target instanceof HTMLElement&&(target.matches('input,textarea,select,[contenteditable="true"]')||target.closest('input,textarea,select,[contenteditable="true"]'));}
+function submitKeyboardDialog(target){
+  if(!(target instanceof Element)||isKeyboardEditingTarget(target)||target.closest('button,a'))return false;
+  const dialog=target.closest('dialog,[role="dialog"]'),form=dialog?.querySelector('form');
+  if(!form)return false;
+  const submit=form.querySelector('button[type="submit"],input[type="submit"]');
+  if(!submit||submit.disabled)return false;
+  if(typeof form.requestSubmit==='function')form.requestSubmit(submit);
+  else submit.click();
+  return true;
+}
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'){
+    if($('#modal').open){event.preventDefault();$('#modal-close').click();return;}
+    endGesture(true);editing=null;copyPicked=false;closeWeekInfo();picked=null;clearDrop();closePanel();closeMenu();refresh();return;
+  }
+  if(event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey)return;
+  if(event.key==='Enter'&&submitKeyboardDialog(event.target))event.preventDefault();
+  if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight')return;
+  if(!(event.target instanceof Element)||isKeyboardEditingTarget(event.target)||event.target.closest('.shift,.month-picker,.people-filter,.settings-nav,.project-focus'))return;
+  if($('#modal').open||!$('#month-picker').hidden||!$('#people-filter').hidden||$('#project-focus')?.open)return;
+  event.preventDefault();changeWeek(event.key==='ArrowLeft'?-7:7);
+});
 const surface=document.createElement('div');surface.className='canvas-surface';$('#grid-scroll').append(surface);surface.append($('#timeline'));
 $('.board').insertAdjacentHTML('beforeend',`<div class="canvas-zoom" role="group" aria-label="Canvas-Zoom"><button id="zoom-out" aria-label="Herauszoomen">${icon('minus')}</button><button id="zoom-value" aria-label="Zoom auf 100 Prozent zurücksetzen">100%</button><button id="zoom-in" aria-label="Hineinzoomen">${icon('plus')}</button></div>`);
 $('#zoom-out').onclick=()=>setZoom(zoom-.25);$('#zoom-in').onclick=()=>setZoom(zoom+.25);$('#zoom-value').onclick=()=>setZoom(1);

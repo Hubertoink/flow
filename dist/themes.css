@@ -144,3 +144,10 @@ dialog::-webkit-scrollbar-thumb{background:var(--border);border:3px solid transp
 dialog::-webkit-scrollbar-thumb:hover{background-color:var(--muted)}
 dialog::-webkit-scrollbar-button{display:none}
 dialog::-webkit-scrollbar-corner{background:transparent}
+:where(dialog,.month-picker,.people-filter,.detail-panel,.dropdown,.week-info,.grid-scroll,#project-content,.team-rights,.people-filter-options){scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 58%,transparent) transparent;overscroll-behavior:contain}
+:where(dialog,.month-picker,.people-filter,.detail-panel,.dropdown,.week-info,.grid-scroll,#project-content,.team-rights,.people-filter-options)::-webkit-scrollbar{width:12px;height:12px;background:transparent}
+:where(dialog,.month-picker,.people-filter,.detail-panel,.dropdown,.week-info,.grid-scroll,#project-content,.team-rights,.people-filter-options)::-webkit-scrollbar-track{margin:12px;background:transparent}
+:where(dialog,.month-picker,.people-filter,.detail-panel,.dropdown,.week-info,.grid-scroll,#project-content,.team-rights,.people-filter-options)::-webkit-scrollbar-thumb{background:var(--border);border:3px solid transparent;background-clip:padding-box;border-radius:999px}
+:where(dialog,.month-picker,.people-filter,.detail-panel,.dropdown,.week-info,.grid-scroll,#project-content,.team-rights,.people-filter-options)::-webkit-scrollbar-thumb:hover{background-color:var(--muted)}
+:where(dialog,.month-picker,.people-filter,.detail-panel,.dropdown,.week-info,.grid-scroll,#project-content,.team-rights,.people-filter-options)::-webkit-scrollbar-button{display:none}
+:where(dialog,.month-picker,.people-filter,.detail-panel,.dropdown,.week-info,.grid-scroll,#project-content,.team-rights,.people-filter-options)::-webkit-scrollbar-corner{background:transparent}
