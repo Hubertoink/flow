@@ -29,6 +29,7 @@ jobs:
       - run: npm run check && npm run check:team && npm test
       - run: mkdir -p .flow-local
       - run: npx playwright-core install --with-deps chromium
+      - run: node history.browser.mjs
       - run: node team.test.mjs
         env:
           FLOW_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
