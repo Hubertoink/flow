@@ -27,3 +27,9 @@
 .team-account-button:disabled{opacity:.5;cursor:wait}
 @media(max-width:650px){.team-member-footer{gap:20px}.team-account-actions{width:100%;flex-direction:column}.team-account-actions .team-account-button{width:100%;min-height:42px}.team-member-footer .form-actions{width:100%;justify-content:flex-end}}
 @media(prefers-reduced-motion:reduce){.team-account-button{transition:none}}
+
+/* Keep the history title and close control outside the scrolling entries. */
+dialog.team-audit-modal[open]{display:flex;flex-direction:column;max-height:calc(100dvh - 40px);overflow:hidden}
+.team-audit-modal>#modal-content{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.team-audit-modal .modal-top{flex:none}
+.team-audit-modal .team-dialog-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}

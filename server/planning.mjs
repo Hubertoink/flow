@@ -15,7 +15,7 @@ function derivedActivities(plan){
   for(const s of plan.shifts)for(const t of s.segments){const range=used.get(t.activityId)||{start:24,end:0};range.start=Math.min(range.start,s.start+t.offset);range.end=Math.max(range.end,s.start+t.offset+t.duration);used.set(t.activityId,range);}
   plan.activities=plan.activities.filter(a=>a.explicit||used.has(a.id)).map(a=>used.has(a.id)?{...a,...used.get(a.id)}:a);
 }
-export async function applyCommands(db,userId,input,{undoId=null}={}){
+export async function applyCommands(db,userId,input,{undoId=null,redo=false}={}){
   const command=parse(commandSchema,input),member=await getMember(db,userId),ws=await workspace(db);
   if(Number(ws.revision)!==command.expectedRevision)fail(409,'Der Plan wurde inzwischen geändert. Aktualisiere ihn und führe die Änderung erneut aus.');
   const before=await loadPlan(db),after=structuredClone(before),seen=new Set();
@@ -40,18 +40,18 @@ export async function applyCommands(db,userId,input,{undoId=null}={}){
     if(linked.rowCount)fail(409,'Diese Person ist noch mit einem Konto oder einer Einladung verknüpft. Löse zuerst die Verknüpfung.');
   }
   if(!changes.length)return {revision:Number(ws.revision),auditId:null};
-  await writeChanges(db,changes);const revision=await bump(db),auditId=await audit(db,member,undoId?'plan.undo':'plan.change',{changes,revision,detail:undoId?{undoOf:undoId}:{}});
+  await writeChanges(db,changes);const revision=await bump(db),auditId=await audit(db,member,undoId?(redo?'plan.redo':'plan.undo'):'plan.change',{changes,revision,detail:undoId?{undoOf:undoId}:{}});
   if(undoId)await db.query('UPDATE flow_audit SET undone_by=$1 WHERE id=$2',[auditId,undoId]);
   return {revision,auditId};
 }
 export async function undoCommand(db,userId,auditId,expectedRevision){
-  const member=await getMember(db,userId),entry=(await db.query("SELECT * FROM flow_audit WHERE id=$1 AND action='plan.change'",[auditId])).rows[0];
+  const member=await getMember(db,userId),entry=(await db.query("SELECT * FROM flow_audit WHERE id=$1 AND action IN ('plan.change','plan.undo','plan.redo')",[auditId])).rows[0];
   if(!entry||entry.actor_id!==userId&&member.role!=='admin')fail(403,'Diese Änderung darfst du nicht rückgängig machen.');
   if(entry.undone_by)fail(409,'Diese Änderung wurde bereits rückgängig gemacht.');
   // Every affected record must still equal that command's result. Other people's later edits remain intact.
   const plan=await loadPlan(db);
   for(const c of entry.changes){const current=c.collection==='settings'?plan.settings:plan[c.collection].find(e=>e.id===c.id)||null;if(!equal(current,c.after))fail(409,'Die betroffenen Daten wurden danach bearbeitet. Rückgängig würde diese Änderungen überschreiben.');}
-  return applyCommands(db,userId,{expectedRevision,changes:entry.changes.map(c=>({...c,before:c.after,after:c.before}))},{undoId:auditId});
+  return applyCommands(db,userId,{expectedRevision,changes:entry.changes.map(c=>({...c,before:c.after,after:c.before}))},{undoId:auditId,redo:entry.action==='plan.undo'});
 }
 
 // Explicit profile deletion is separate from ordinary edits/imports and their lock checks.

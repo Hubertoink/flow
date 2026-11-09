@@ -150,3 +150,5 @@ Referenzen: [Better Auth](https://better-auth.com/docs/integrations/express), [m
 Pushes auf `main` ver?ffentlichen nach erfolgreichen Tests `ghcr.io/hubertoink/flow` und `ghcr.io/hubertoink/flow-backup` f?r Linux AMD64 und ARM64. `latest` folgt dem aktuellen Stand; f?r Deployments den unver?nderlichen Tag `sha-<vollst?ndiger Commit>` verwenden. Beide Pakete m?ssen in GitHub Packages ?ffentlich sichtbar sein, wenn mittwald sie ohne Registry-Zugang laden soll.
 
 Die Schichtfixierung ?ffnet sich ?ber das Schl?sselicon neben dem Bearbeiten-Stift. Es erscheint beim Hover, Tastaturfokus und auf Touchger?ten. Aufgaben k?nnen weiterhin einzeln als verbindlich festgelegt werden.
+
+Die Icons links vom Personenfilter bieten Undo (Strg+Z / Cmd+Z) und Redo (Strg+Umschalt+Z / Strg+Y). In Eingabefeldern bleibt die native Textbearbeitung erhalten. Neue Planaktionen verwerfen die Redo-Auswahl. Beide Aktionen beachten Rechte, Sperren und Konflikte. Der Kopfbereich des Verlaufs bleibt beim Scrollen sichtbar.

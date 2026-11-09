@@ -3,7 +3,7 @@
   let state=team.bootstrap,base=structuredClone(state.plan),saving=false,scheduled=false,resolveSave=null,pending=null,pollBusy=false,offline=false;
   const collectionNames=['people','shifts','activities','projects','taskTypes'];
   const preferenceKeys=['theme','background','saturday','sunday','weekend','zoom','hoursTransition','projectsEnabled','projectsCollapsed','projectHeight','projectWeeks'];
-  let preferences=structuredClone(state.preferences),lastAudit=null;
+  let preferences=structuredClone(state.preferences),historyEntries=[],historyLoading=false;
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
   const same=(a,b)=>JSON.stringify(stable(a))===JSON.stringify(stable(b));
@@ -24,6 +24,7 @@
   }
   function banner(message,{changed=false}={}){const element=document.querySelector('#team-error-banner'),notice=document.querySelector('#team-plan-update');if(notice)notice.hidden=!changed;if(!element)return;element.hidden=!message||changed;element.querySelector('span').textContent=changed?'':message||'';}
   function status(message){
+    for(const [id,flag] of [['team-undo','canUndo'],['team-redo','canRedo']]){const button=document.getElementById(id);if(button)button.disabled=saving||scheduled||offline||historyLoading||!historyEntries.some(e=>e[flag]);}
     const el=document.querySelector('#team-status');if(!el)return;
     const label=message||(offline?'Verbindung unterbrochen':saving?'Wird gespeichert …':'Gespeichert'),value=offline?'offline':saving?'saving':'ok';
     if(el.dataset.state!==value||el.dataset.tooltip!==label){el.innerHTML=icon(offline?'ban':saving?'refresh':'save')+`<span class="team-status-label">${escape(label)}</span>`;el.dataset.state=value;el.dataset.tooltip=label;}
@@ -38,7 +39,7 @@
     return next;
   }
   function apply(next,{close=true}={}){
-    state=next;base=clone(next.plan);preferences=clone(next.preferences);team.bootstrap=next;
+    void refreshHistory();state=next;base=clone(next.plan);preferences=clone(next.preferences);team.bootstrap=next;
     if(close){endGesture(true);closePanel();document.querySelector('#modal')?.close();window.closeProjectFocus?.();editing=null;selected=null;picked=null;clearDrop();}
     const updated={...clone(next.plan),settings:{...clone(next.plan.settings),...clone(next.preferences)}};
     const unchanged=!close&&same(data,updated);
@@ -57,7 +58,7 @@
     busy(true);let result={auditId:null};
     try{
       if(!same(preferences,personal)){await request('/api/preferences',personal,'PUT');preferences=personal;}
-      if(changes.length){const next=await request('/api/plan/commands',{expectedRevision:state.revision,changes});result={auditId:next.auditId};lastAudit=next.auditId;apply(next,{close:false});}
+      if(changes.length){const next=await request('/api/plan/commands',{expectedRevision:state.revision,changes});result={auditId:next.auditId};apply(next,{close:false});}
       offline=false;document.body.classList.remove('team-offline');banner('');
     }catch(error){
       result=null;
@@ -73,7 +74,12 @@
   team.attachUndo=button=>{
     queueMicrotask(()=>{const operation=pending;button.disabled=true;if(!operation){button.hidden=true;return;}operation.then(result=>{if(!button.isConnected)return;if(!result?.auditId){button.hidden=true;return;}button.disabled=false;button.onclick=()=>undo(result.auditId);});});
   };
-  async function undo(auditId){if(saving)return;busy(true);try{const next=await request('/api/plan/undo',{auditId,expectedRevision:state.revision});apply(next);banner('');toast('Änderung rückgängig gemacht.');}catch(error){banner(error.message);toast(error.message);}finally{busy(false);}}
+  async function refreshHistory(){
+    historyLoading=true;status();
+    try{historyEntries=await request('/api/audit');const latestChange=Math.max(0,...historyEntries.filter(e=>e.action==='plan.change').map(e=>e.revision));for(const entry of historyEntries)if(entry.revision<latestChange)entry.canRedo=false;}catch{historyEntries=[];}finally{historyLoading=false;status();}
+  }
+  function historyAction(redo=false){const entry=historyEntries.find(e=>redo?e.canRedo:e.canUndo);if(entry)void undo(entry.id,redo);}
+  async function undo(auditId,redo=false){if(saving||scheduled||offline)return;busy(true);try{const next=await request('/api/plan/undo',{auditId,expectedRevision:state.revision});apply(next);banner('');toast(redo?'Änderung wiederhergestellt.':'Änderung rückgängig gemacht.');}catch(error){banner(error.message);toast(error.message);}finally{busy(false);}}
   team.checkTime=(s,action)=>check(timeReason(s,action));team.checkTasks=(s,t)=>check(taskReason(s,t));
   team.canCreate=(person,date,withTasks=false)=>!timeReason({person,date,lock:'open'},'create')&&(!withTasks||can('tasks',person));
   team.canTasks=s=>!taskReason(s);team.canActivities=()=>admin()||state.member.permissions.manageActivities;
@@ -238,8 +244,8 @@
   }
   async function openOutbox(){const messages=await request('/api/local-mail');modal('Lokaler Postausgang',`<p class="team-notice">Für diesen lokalen Test werden E-Mails hier angezeigt. Auf dem Server richtest du SMTP für Einladungen und Passwortlinks ein.</p>${messages.length?messages.map(m=>`<article class="team-mail"><strong>${escape(m.subject)}</strong><p class="modal-note">An ${escape(m.recipient)} · ${new Date(m.createdAt).toLocaleString('de-DE')}</p><pre>${escape(m.text)}</pre></article>`).join(''):'<p>Noch keine Nachrichten.</p>'}`);}
   async function openAudit(){
-    const entries=await request('/api/audit'),labels={'plan.change':'Plan geändert','plan.undo':'Planänderung rückgängig gemacht','workspace.setup':'Team eingerichtet','invitation.create':'Person eingeladen','invitation.revoke':'Einladung widerrufen','invitation.accept':'Einladung angenommen','member.update':'Konto oder Rechte geändert','member.delete':'Konto gelöscht','person.delete':'Mitarbeitendenprofil gelöscht','sessions.revoke':'Sitzungen beendet','shift.lock':'Schichtsperre geändert','assignment.lock':'Verbindliche Aufgabe geändert','week.update':'Wochenfreigabe geändert'};
-    modal('Änderungsverlauf',entries.length?`<div class="team-audit-list">${entries.map(e=>`<article class="team-audit-entry"><div class="team-audit-content"><div class="team-audit-heading"><strong>${escape(labels[e.action]||e.action)}</strong><span>${escape(e.actorName)} · <time datetime="${escape(e.createdAt)}">${new Date(e.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'medium'})}</time>${e.detail?.week?' · '+escape(e.detail.week):''}</span></div>${(e.summary||[]).map(text=>`<p>${escape(text)}</p>`).join('')}${e.undone?'<p class="team-audit-undone">Bereits rückgängig gemacht</p>':''}</div>${e.canUndo?`<button class="secondary-button" data-undo-audit="${e.id}">Rückgängig</button>`:''}</article>`).join('')}</div>`:'<p>Noch keine Änderungen.</p>');document.querySelectorAll('[data-undo-audit]').forEach(button=>button.onclick=()=>undo(button.dataset.undoAudit));
+    const entries=await request('/api/audit'),labels={'plan.change':'Plan geändert','plan.undo':'Planänderung rückgängig gemacht','plan.redo':'Planänderung wiederhergestellt','workspace.setup':'Team eingerichtet','invitation.create':'Person eingeladen','invitation.revoke':'Einladung widerrufen','invitation.accept':'Einladung angenommen','member.update':'Konto oder Rechte geändert','member.delete':'Konto gelöscht','person.delete':'Mitarbeitendenprofil gelöscht','sessions.revoke':'Sitzungen beendet','shift.lock':'Schichtsperre geändert','assignment.lock':'Verbindliche Aufgabe geändert','week.update':'Wochenfreigabe geändert'};
+    modal('Änderungsverlauf',entries.length?`<div class="team-audit-list">${entries.map(e=>`<article class="team-audit-entry"><div class="team-audit-content"><div class="team-audit-heading"><strong>${escape(labels[e.action]||e.action)}</strong><span>${escape(e.actorName)} · <time datetime="${escape(e.createdAt)}">${new Date(e.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'medium'})}</time>${e.detail?.week?' · '+escape(e.detail.week):''}</span></div>${(e.summary||[]).map(text=>`<p>${escape(text)}</p>`).join('')}${e.undone?'<p class="team-audit-undone">Bereits rückgängig gemacht</p>':''}</div>${e.canUndo?`<button class="secondary-button" data-undo-audit="${e.id}">Rückgängig</button>`:''}</article>`).join('')}</div>`:'<p>Noch keine Änderungen.</p>');document.querySelector('#modal').classList.add('team-audit-modal');document.querySelectorAll('[data-undo-audit]').forEach(button=>button.onclick=()=>undo(button.dataset.undoAudit));
   }
   function account(){
     modal('Mein Konto',`<p><strong>${escape(state.member.name)}</strong><br>${escape(state.member.email)}</p><h3>Passwort ändern</h3><form id="team-password-form"><label><span class="field-label">Aktuelles Passwort</span><input name="currentPassword" type="password" required autocomplete="current-password"></label><label><span class="field-label">Neues Passwort</span><input name="newPassword" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label><label><span class="field-label">Passwort wiederholen</span><input name="repeat" type="password" required minlength="12" autocomplete="new-password"></label><button type="submit" class="primary-button">Passwort speichern</button></form><h3>Zwei-Faktor-Anmeldung</h3><p class="modal-note">${state.member.twoFactorEnabled?'Aktiv. Bei der Anmeldung wird zusätzlich ein Code benötigt.':'Sichere dein Konto zusätzlich mit einer Authenticator-App.'}</p><form id="team-twofactor-form"><label><span class="field-label">Aktuelles Passwort</span><input name="password" type="password" required autocomplete="current-password"></label><button type="submit" class="secondary-button">${state.member.twoFactorEnabled?'Zwei-Faktor-Anmeldung deaktivieren':'Zwei-Faktor-Anmeldung einrichten'}</button></form><div class="form-actions"><button id="team-revoke-own" class="secondary-button">Andere Sitzungen beenden</button><button id="team-logout" class="secondary-button">Abmelden</button></div>`,{wide:false});
@@ -277,6 +283,16 @@
     }catch(error){if(error.status===401){location.assign('/');return;}offline=true;document.body.classList.add('team-offline');banner(error.message+' Du kannst nach Wiederherstellung der Verbindung aktualisieren.');status();}finally{pollBusy=false;}
   }
   team.init=()=>{
+    document.querySelector('#people-filter-button').insertAdjacentHTML('beforebegin',`<button type="button" id="team-undo" class="icon-button" aria-label="Rückgängig" data-tooltip="Rückgängig (Strg+Z)" disabled>${icon('undo')}</button><button type="button" id="team-redo" class="icon-button" aria-label="Wiederherstellen" data-tooltip="Wiederherstellen (Strg+Umschalt+Z / Strg+Y)" disabled>${icon('redo')}</button>`);
+    document.querySelector('#team-undo').onclick=()=>historyAction();
+    document.querySelector('#team-redo').onclick=()=>historyAction(true);
+    document.addEventListener('keydown',event=>{
+      if(event.defaultPrevented||event.isComposing||event.altKey||!(event.ctrlKey||event.metaKey)||event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')||document.querySelector('dialog[open]'))return;
+      const key=event.key.toLowerCase();if(key!=='z'&&key!=='y')return;
+      event.preventDefault();event.stopImmediatePropagation();
+      if(!event.repeat&&!saving&&!scheduled&&!offline&&!historyLoading)historyAction(key==='y'||event.shiftKey);
+    },true);
+    void refreshHistory();
     document.querySelector('#settings-button').insertAdjacentHTML('afterend',`<div id="team-user-wrap" class="menu-wrap"><button id="team-user-toggle" class="icon-button" aria-label="Benutzer und Team" aria-haspopup="menu" aria-expanded="false" aria-controls="team-user-menu">${icon('user')}</button><div id="team-user-menu" class="dropdown team-user-menu" role="menu" hidden><div class="menu-label">${escape(state.member.name)}<small>${escape(state.organization)} · ${admin()?'Admin':'Mitarbeitend'}</small></div><button id="team-account" role="menuitem">${icon('user')}Mein Konto</button><button id="team-management" role="menuitem" ${admin()?'':'hidden'}>${icon('users')}Team & Zugänge</button><button id="team-outbox-menu" role="menuitem" ${admin()&&state.localMail?'':'hidden'}>${icon('info')}Lokaler Postausgang</button><div class="menu-divider"></div><button id="team-history" role="menuitem">${icon('clock')}Änderungsverlauf</button><button id="team-signout" role="menuitem">Abmelden</button></div></div>`);
     document.querySelector('#app').insertAdjacentHTML('beforebegin',`<div id="team-error-banner" class="team-error-banner" role="alert" hidden><span></span><button id="team-reload" class="secondary-button">Aktualisieren</button></div>`);
     document.querySelector('.footer').insertAdjacentHTML('beforeend','<div class="team-plan-meta"><span id="team-plan-update" class="team-plan-update" role="status" hidden><button type="button" id="team-plan-reload" aria-label="Der Teamplan wurde geändert. Jetzt aktualisieren." data-tooltip="Der Teamplan wurde geändert. Aktualisiere ihn, bevor du weiter bearbeitest.">Teamplan geändert · Aktualisieren</button></span><span class="team-week-controls"><button type="button" id="team-week-lock-toggle" class="team-week-lock-toggle" aria-pressed="false"></button><button type="button" id="team-week-state" class="team-week-state" aria-live="polite" aria-atomic="true"></button></span><span id="team-status" class="team-status" role="status" tabindex="0"></span><span id="team-version" class="team-version"></span></div>');
@@ -294,10 +310,10 @@
     document.querySelector('#team-week-lock').onclick=document.querySelector('#team-week-lock-toggle').onclick=toggleWeekLock;
     document.querySelector('#team-plan-reload').onclick=()=>poll(true);
     document.querySelector('#team-history').onclick=userAction(openAudit);document.querySelector('#team-management').onclick=userAction(openTeam);document.querySelector('#team-account').onclick=()=>{closeUserMenu();account();};document.querySelector('#team-outbox-menu').onclick=userAction(openOutbox);document.querySelector('#team-signout').onclick=userAction(async()=>{await request('/api/auth/sign-out',{});location.assign('/');});document.querySelector('#team-reload').onclick=()=>poll(true);
-    const originalModal=openModal;openModal=function(...args){document.querySelector('#modal').classList.remove('team-modal');originalModal(...args);};
+    const originalModal=openModal;openModal=function(...args){document.querySelector('#modal').classList.remove('team-modal','team-audit-modal');originalModal(...args);};
     const originalTimeline=renderTimeline;renderTimeline=function(){originalTimeline();decorate();};
     const originalProjects=renderProjects;renderProjects=function(){originalProjects();decorate();};
-    const originalSettings=openSettings;openSettings=function(...args){originalSettings(...args);document.querySelector('#modal').classList.remove('team-modal');document.querySelector('[data-settings-tab=updates]').hidden=true;if(!admin()){document.querySelectorAll('[data-settings-tab=breaks],[data-settings-tab=people],[data-settings-tab=presets]').forEach(el=>el.hidden=true);document.querySelectorAll('#settings-panel-breaks input,#settings-panel-breaks button,#settings-panel-people button,#settings-panel-presets button').forEach(el=>el.disabled=true);}};
+    const originalSettings=openSettings;openSettings=function(...args){originalSettings(...args);document.querySelector('#modal').classList.remove('team-modal','team-audit-modal');document.querySelector('[data-settings-tab=updates]').hidden=true;if(!admin()){document.querySelectorAll('[data-settings-tab=breaks],[data-settings-tab=people],[data-settings-tab=presets]').forEach(el=>el.hidden=true);document.querySelectorAll('#settings-panel-breaks input,#settings-panel-breaks button,#settings-panel-people button,#settings-panel-presets button').forEach(el=>el.disabled=true);}};
     const originalOpenProject=editProject;editProject=function(...args){if(!admin()){toast('Projekte kann nur ein Admin bearbeiten.');return;}originalOpenProject(...args);};
     const originalPhase=editProjectPhase;editProjectPhase=function(...args){if(!admin()){toast('Projektphasen kann nur ein Admin bearbeiten.');return;}originalPhase(...args);};
     const originalFocus=openProjectFocus;openProjectFocus=function(...args){if(!admin()){toast('Projektphasen kann nur ein Admin bearbeiten.');return;}originalFocus(...args);};

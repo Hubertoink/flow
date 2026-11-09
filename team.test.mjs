@@ -90,7 +90,12 @@ try{
   current=(await marcClient.call('/api/bootstrap')).plan.shifts.find(s=>s.id===marcShift.id);
   const ownChange=await update(marcClient,[change('shifts',current,{...current,length:7})]);
   await update(admin,[change('shifts',null,shift('later-independent',lee.id,dayAt(3)))]);
-  snapshot=await marcClient.call('/api/bootstrap');await marcClient.call('/api/plan/undo',{auditId:ownChange.auditId,expectedRevision:snapshot.revision});
+  snapshot=await marcClient.call('/api/bootstrap');
+  const undone=await marcClient.call('/api/plan/undo',{auditId:ownChange.auditId,expectedRevision:snapshot.revision});
+  const redone=await marcClient.call('/api/plan/undo',{auditId:undone.auditId,expectedRevision:undone.revision});
+  assert.deepEqual(redone.plan.shifts, snapshot.plan.shifts);checks++;
+  await marcClient.call('/api/plan/undo',{auditId:undone.auditId,expectedRevision:redone.revision},'POST',409);
+  await marcClient.call('/api/plan/undo',{auditId:redone.auditId,expectedRevision:redone.revision});
   snapshot=await admin.call('/api/bootstrap');assert(snapshot.plan.shifts.some(s=>s.id==='later-independent'));assert.equal(snapshot.plan.shifts.find(s=>s.id===marcShift.id).length,8);checks+=2;
   const cannotUndo=await update(marcClient,[change('shifts',snapshot.plan.shifts.find(s=>s.id===marcShift.id),{...snapshot.plan.shifts.find(s=>s.id===marcShift.id),length:7})]);
   current=(await admin.call('/api/bootstrap')).plan.shifts.find(s=>s.id===marcShift.id);await update(admin,[change('shifts',current,{...current,length:6})]);snapshot=await marcClient.call('/api/bootstrap');await marcClient.call('/api/plan/undo',{auditId:cannotUndo.auditId,expectedRevision:snapshot.revision},'POST',409);
